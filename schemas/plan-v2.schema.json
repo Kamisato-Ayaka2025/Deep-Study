@@ -1,0 +1,369 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "title",
+    "background",
+    "goal",
+    "weeklyMinutes",
+    "scope",
+    "defaults",
+    "clarifications",
+    "limitations",
+    "sourceKeys",
+    "nodes",
+    "strategy",
+    "coverage"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "title": {
+      "$ref": "#/$defs/text"
+    },
+    "background": {
+      "$ref": "#/$defs/text"
+    },
+    "goal": {
+      "$ref": "#/$defs/text"
+    },
+    "weeklyMinutes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10080
+    },
+    "scope": {
+      "const": "Adaptive"
+    },
+    "defaults": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "value",
+          "reason"
+        ],
+        "properties": {
+          "field": {
+            "enum": [
+              "background",
+              "goal",
+              "weeklyMinutes"
+            ]
+          },
+          "value": {
+            "$ref": "#/$defs/text"
+          },
+          "reason": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "clarifications": {
+      "$ref": "#/$defs/texts"
+    },
+    "limitations": {
+      "$ref": "#/$defs/texts"
+    },
+    "sourceKeys": {
+      "$ref": "#/$defs/sources"
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 240,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "title",
+          "type",
+          "objectives",
+          "prerequisiteKeys",
+          "estimatedMinutes",
+          "lab"
+        ],
+        "properties": {
+          "key": {
+            "$ref": "#/$defs/key"
+          },
+          "title": {
+            "$ref": "#/$defs/text"
+          },
+          "type": {
+            "enum": [
+              "theory",
+              "lab"
+            ]
+          },
+          "objectives": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/$defs/text"
+            }
+          },
+          "prerequisiteKeys": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 240,
+            "items": {
+              "$ref": "#/$defs/key"
+            }
+          },
+          "estimatedMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10080
+          },
+          "lab": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "mode",
+                  "previousLabKey",
+                  "toolchain",
+                  "sourceKeys",
+                  "rationale",
+                  "kind"
+                ],
+                "properties": {
+                  "mode": {
+                    "enum": [
+                      "independent",
+                      "continuous"
+                    ]
+                  },
+                  "previousLabKey": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "$ref": "#/$defs/key"
+                      }
+                    ]
+                  },
+                  "toolchain": {
+                    "enum": [
+                      "paper-exercise",
+                      "manual-project",
+                      "portable-c",
+                      "portable-cpp"
+                    ]
+                  },
+                  "sourceKeys": {
+                    "$ref": "#/$defs/sources"
+                  },
+                  "rationale": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "kind": {
+                    "enum": [
+                      "exercise",
+                      "project"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "algorithmKeys": {
+            "items": {
+              "pattern": "^a[1-9][0-9]{0,3}$",
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 80
+          }
+        }
+      }
+    },
+    "algorithms": {
+      "items": {
+        "properties": {
+          "key": {
+            "pattern": "^a[1-9][0-9]{0,3}$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "type": "array",
+      "maxItems": 80
+    },
+    "strategy": {
+      "title": "P8 StrategyDecision v1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "domain",
+        "teachingModes",
+        "reason",
+        "materialCapabilities",
+        "limitations",
+        "clarifications"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "teachingModes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "theory",
+              "exercise",
+              "project"
+            ]
+          }
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "materialCapabilities": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "paper-exercise",
+              "manual-project",
+              "portable-c",
+              "portable-cpp"
+            ]
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "clarifications": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "entryKey": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "nodeKeys": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 240,
+            "items": {
+              "$ref": "#/$defs/key"
+            }
+          },
+          "state": {
+            "enum": [
+              "included",
+              "excluded",
+              "unavailable"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "entryKey",
+          "state",
+          "nodeKeys",
+          "reason"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "pattern": "\\S"
+    },
+    "texts": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^n[1-9][0-9]{0,3}$",
+      "maxLength": 5
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 99,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^s[1-9][0-9]?$",
+        "maxLength": 3
+      }
+    }
+  }
+}

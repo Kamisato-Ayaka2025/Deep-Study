@@ -1,0 +1,30 @@
+{
+  "version": "1.3.0-rc.3",
+  "commit": "17959667c6799cebd0dedc313ba506fb9716bcb6",
+  "status": "self_checked",
+  "manualPending": true,
+  "gate": "artifacts/acceptance/P10/20261020-163853-873a2d",
+  "stagesPassed": 17,
+  "testsPassed": 431,
+  "testsFailed": 0,
+  "testsSkipped": 0,
+  "desktopChecks": {
+    "p10-ui": 133,
+    "p4-ui": 6,
+    "p5-ui": 9,
+    "p6-ui": 25,
+    "p7-ui": 12,
+    "p8-ui": 30,
+    "p9-ui": 50,
+    "ui": 9
+  },
+  "packageFilesVerified": 131,
+  "packageSha256": "486F27C6C63785976647AD906B6A740B5A8CA0597AFD4038DD0AA05734BAC922",
+  "prerequisitesAdvisory": true,
+  "completionRulesUnchanged": true,
+  "databaseMigrationRequired": false,
+  "realApiCalls": 0,
+  "newOcrCalls": 0,
+  "generatedCodeExecuted": false,
+  "userDatabaseModified": false
+}

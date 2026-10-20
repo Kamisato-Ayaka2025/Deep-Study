@@ -1,0 +1,20 @@
+<UserControl x:Class="StudyHarness.Desktop.TutoringPane" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StudyHarness.Desktop" MinWidth="260">
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="12">
+  <TextBlock Text="本课临时答疑" FontSize="20" FontWeight="Bold"/>
+  <TextBlock Text="切课、关闭或重启即清空。理论课可详细讲解和举例；实验课提供提示，不代写完整答案。不会修改文件、执行代码或确认完成。" TextWrapping="Wrap" Margin="0,8"/>
+  <local:TutorMarkdownView x:Name="Dialogue" Height="220" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="TutorDialogue"/>
+  <TextBlock Text="问题（最多4000字）" Margin="0,8,0,4"/>
+  <TextBox x:Name="Question" AcceptsReturn="True" TextWrapping="Wrap" Height="80" MaxLength="4000" TextChanged="InputChanged" AutomationProperties.AutomationId="TutorQuestion"/>
+  <Expander Header="主动提供代码（可选，UTF-8）" Margin="0,8"><StackPanel>
+   <Button Content="选择一个代码文件，只读" Click="SelectCode"/>
+   <TextBox x:Name="Code" AcceptsReturn="True" TextWrapping="Wrap" Height="100" MaxLength="16000" TextChanged="InputChanged"/>
+   <Button Content="清除代码" Click="ClearCode"/>
+  </StackPanel></Expander>
+  <TextBlock Text="点击发送将使用当前模型，向 DeepSeek 发送本课内容、临时对话、问题及你主动提供的代码。" TextWrapping="Wrap" Margin="0,4,0,8"/>
+  <Button x:Name="PrepareButton" Content="查看发送内容（可选）" Click="PrepareClick" Padding="8"/>
+  <TextBox x:Name="Preview" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="180" VerticalScrollBarVisibility="Auto" Visibility="Collapsed" Margin="0,8"/>
+  <Button x:Name="SendButton" Content="发送" Click="SendClick" IsEnabled="False" Padding="8"/>
+  <WrapPanel Margin="0,8"><Button Content="取消 / 清空会话" Click="ResetClick" Margin="8,0"/></WrapPanel>
+  <TextBlock x:Name="Status" Text="输入问题后点击发送即可获得回答。" TextWrapping="Wrap"/>
+ </StackPanel></ScrollViewer>
+</UserControl>

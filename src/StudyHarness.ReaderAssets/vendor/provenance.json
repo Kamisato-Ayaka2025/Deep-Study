@@ -1,0 +1,8 @@
+{
+  "security": "trust:false,strict:error,maxExpand:500,maxSize:20; local assets only",
+  "integrity": "sha512-h+UCwkZ+4Jz8WQ7MLGfj7UVFrRCizGb912fwF4luGdYsC5paYG1vx+jy+KRcC/XkpjGva/P7nAWuxNnPzRvzHw==",
+  "name": "KaTeX",
+  "license": "MIT",
+  "version": "0.18.7",
+  "source": "https://registry.npmjs.org/katex/-/katex-0.18.7.tgz"
+}

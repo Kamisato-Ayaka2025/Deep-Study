@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../StudyHarness.Contracts/StudyHarness.Contracts.csproj" />
+    <ProjectReference Include="../StudyHarness.Domain/StudyHarness.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../prompts/planning-v1.txt" LogicalName="planning-v1.txt" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/plan.schema.json" LogicalName="plan.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/theory-lesson.schema.json" LogicalName="theory-lesson.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/lab-material.schema.json" LogicalName="lab-material.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/plan-v2.schema.json" LogicalName="plan-v2.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/general-practice.schema.json" LogicalName="general-practice.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/theory-lesson-v2.schema.json" LogicalName="theory-lesson-v2.schema.json" /></ItemGroup>
+</Project>

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SettingsDto",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "model",
+    "generationMode",
+    "consentMode",
+    "hasApiKey",
+    "revision"
+  ],
+  "properties": {
+    "libraryId": { "type": ["string", "null"], "format": "uuid" },
+    "libraryPath": { "type": ["string", "null"] },
+    "schemaVersion": {
+      "const": 1
+    },
+    "model": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}(?![\\s\\S])"
+    },
+    "generationMode": {
+      "enum": [
+        "Click",
+        "Auto"
+      ]
+    },
+    "consentMode": {
+      "enum": [
+        "Each",
+        "Once"
+      ]
+    },
+    "hasApiKey": {
+      "type": "boolean"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

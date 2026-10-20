@@ -1,0 +1,389 @@
+{
+  "commit": "14d30a94a436fd11c8013a79fd25b335286e849d",
+  "tag": "v1.1.0-rc.1",
+  "packageSha256": "3DDC17E2346A4DB6B5116EFD726F3D67D93C70EC0A23DFCBEC119DD56D592B2C",
+  "manualPending": true,
+  "sourceHash": "7588C56152A256B2F4BEE791728F6916A954DC5C6428610A01CA2D8869F8F7D1",
+  "version": "1.1.0-rc.1",
+  "status": "self_checked",
+  "gate": "artifacts/acceptance/P8/20261019-174635-379ad5",
+  "retainedArchive": "artifacts/releases/1.1.0-rc.1",
+  "steps": 29,
+  "passedSteps": 29,
+  "tests": {
+    "executed": 334,
+    "passed": 334,
+    "failed": 0,
+    "skipped": 0
+  },
+  "desktopChecks": 97,
+  "p8RealChecks": 198,
+  "p8Scenarios": [
+    {
+      "scenario": "c",
+      "checks": 17,
+      "generationCalls": 3,
+      "timings": [
+        {
+          "phase": "source",
+          "coldSeconds": 0.0889466,
+          "cachedSeconds": 0.0134138,
+          "sourceCharacters": 205
+        },
+        {
+          "phase": "plan",
+          "seconds": 4.9182774
+        },
+        {
+          "phase": "theory",
+          "key": "n1",
+          "seconds": 63.7408928
+        },
+        {
+          "phase": "lab",
+          "key": "n2",
+          "seconds": 7.1284418
+        }
+      ],
+      "totalWaitSeconds": 76.1409018,
+      "evidence": "artifacts/acceptance/P8/20261019-174635-379ad5/p8-real-c/p8-real-summary.json",
+      "sha256": "BF1410A96C8A63716BBCFB89C8FC983DC5507178912289B30924D490D93A2A63"
+    },
+    {
+      "scenario": "cpp",
+      "checks": 25,
+      "generationCalls": 5,
+      "timings": [
+        {
+          "phase": "source",
+          "coldSeconds": 0.0842001,
+          "cachedSeconds": 0.0115874,
+          "sourceCharacters": 251
+        },
+        {
+          "phase": "plan",
+          "seconds": 5.7275762
+        },
+        {
+          "phase": "theory",
+          "key": "n1",
+          "seconds": 64.3042369
+        },
+        {
+          "phase": "theory",
+          "key": "n3",
+          "seconds": 54.2275464
+        },
+        {
+          "phase": "lab",
+          "key": "n2",
+          "seconds": 5.4141319
+        },
+        {
+          "phase": "lab",
+          "key": "n4",
+          "seconds": 5.4085082
+        }
+      ],
+      "totalWaitSeconds": 135.4228549,
+      "evidence": "artifacts/acceptance/P8/20261019-174635-379ad5/p8-real-cpp/p8-real-summary.json",
+      "sha256": "F9A92D125EA03A573313F10B80FF20E492D2F10274CF471952DB1294195F595D"
+    },
+    {
+      "scenario": "cross",
+      "checks": 17,
+      "generationCalls": 3,
+      "timings": [
+        {
+          "phase": "source",
+          "coldSeconds": 0.0826078,
+          "cachedSeconds": 0.0122292,
+          "sourceCharacters": 168
+        },
+        {
+          "phase": "plan",
+          "seconds": 5.4320105
+        },
+        {
+          "phase": "theory",
+          "key": "n1",
+          "seconds": 60.9718963
+        },
+        {
+          "phase": "lab",
+          "key": "n2",
+          "seconds": 7.4971126
+        }
+      ],
+      "totalWaitSeconds": 74.2450836,
+      "evidence": "artifacts/acceptance/P8/20261019-174635-379ad5/p8-real-cross/p8-real-summary.json",
+      "sha256": "51B21F923004BC3C54CF51B171F89C909733CA1A881057E421F6777AE407B1A5"
+    },
+    {
+      "scenario": "math",
+      "checks": 17,
+      "generationCalls": 3,
+      "timings": [
+        {
+          "phase": "source",
+          "coldSeconds": 0.0881109,
+          "cachedSeconds": 0.0134295,
+          "sourceCharacters": 165
+        },
+        {
+          "phase": "plan",
+          "seconds": 5.2891814
+        },
+        {
+          "phase": "theory",
+          "key": "n1",
+          "seconds": 47.2674467
+        },
+        {
+          "phase": "lab",
+          "key": "n2",
+          "seconds": 7.4167384
+        }
+      ],
+      "totalWaitSeconds": 60.3426421,
+      "evidence": "artifacts/acceptance/P8/20261019-174635-379ad5/p8-real-math/p8-real-summary.json",
+      "sha256": "769CF723E1458A12904B470AE2582F03B5C7B4ED5C3D4284FFE0B315638F7B71"
+    },
+    {
+      "scenario": "network",
+      "checks": 17,
+      "generationCalls": 3,
+      "timings": [
+        {
+          "phase": "source",
+          "coldSeconds": 0.0910964,
+          "cachedSeconds": 0.0125964,
+          "sourceCharacters": 197
+        },
+        {
+          "phase": "plan",
+          "seconds": 5.6460314
+        },
+        {
+          "phase": "theory",
+          "key": "n1",
+          "seconds": 68.7400606
+        },
+        {
+          "phase": "lab",
+          "key": "n2",
+          "seconds": 6.8762174
+        }
+      ],
+      "totalWaitSeconds": 81.6190232,
+      "evidence": "artifacts/acceptance/P8/20261019-174635-379ad5/p8-real-network/p8-real-summary.json",
+      "sha256": "D3F02D34F732DA9ECF53DB7E2B58933CC590C5AB2CE22DA2BBC4ECE51346D7D5"
+    },
+    {
+      "scenario": "ocr",
+      "checks": 30,
+      "generationCalls": 5,
+      "timings": [
+        {
+          "phase": "ocr-preparation",
+          "firstPassSeconds": 15.5482251,
+          "cachedSeconds": 0.0365844,
+          "providerCalls": 3,
+          "authorizedPages": [
+            101,
+            201,
+            401
+          ],
+          "fullBookUploaded": false
+        },
+        {
+          "phase": "plan",
+          "seconds": 7.0337047
+        },
+        {
+          "phase": "theory",
+          "key": "n1",
+          "seconds": 94.6617427
+        },
+        {
+          "phase": "theory",
+          "key": "n2",
+          "seconds": 55.7950439
+        },
+        {
+          "phase": "theory",
+          "key": "n3",
+          "seconds": 67.6876772
+        },
+        {
+          "phase": "cached-source-lesson",
+          "key": "n1",
+          "seconds": 51.5157951
+        }
+      ],
+      "totalWaitSeconds": 293.1825747,
+      "evidence": "artifacts/acceptance/P8/20261019-174635-379ad5/p8-real-ocr/p8-real-summary.json",
+      "sha256": "65101CA67CAFA408D6E9AFB83C7E12D88313F8A50BD29EFDDE92B77F3D742180"
+    },
+    {
+      "scenario": "oi",
+      "checks": 35,
+      "generationCalls": 8,
+      "timings": [
+        {
+          "phase": "web-preparation",
+          "coldSeconds": 5.6705063,
+          "cachedBodyReadSeconds": 0.0179546
+        },
+        {
+          "phase": "plan",
+          "seconds": 8.4443585
+        },
+        {
+          "phase": "theory",
+          "key": "n1",
+          "seconds": 84.7294625
+        },
+        {
+          "phase": "theory",
+          "key": "n2",
+          "seconds": 62.0000926
+        },
+        {
+          "phase": "theory",
+          "key": "n3",
+          "seconds": 115.3167948
+        },
+        {
+          "phase": "lab",
+          "key": "n4",
+          "seconds": 7.2835586
+        },
+        {
+          "phase": "lab",
+          "key": "n5",
+          "seconds": 5.1837018
+        },
+        {
+          "phase": "lab",
+          "key": "n6",
+          "seconds": 6.2516554
+        },
+        {
+          "phase": "cached-source-lesson",
+          "key": "n1",
+          "seconds": 84.0584596
+        }
+      ],
+      "totalWaitSeconds": 379.2467743,
+      "evidence": "artifacts/acceptance/P8/20261019-174635-379ad5/p8-real-oi/p8-real-summary.json",
+      "sha256": "655BA654C1C6CD1180C20BAE2EB5956BBEAA84A1027EAA3187847DD10AD523ED"
+    },
+    {
+      "scenario": "open-web",
+      "checks": 16,
+      "generationCalls": 3,
+      "timings": [
+        {
+          "phase": "web-preparation",
+          "coldSeconds": 7.9517541,
+          "cachedBodyReadSeconds": 0.0129832
+        },
+        {
+          "phase": "plan",
+          "seconds": 4.9550933
+        },
+        {
+          "phase": "theory",
+          "key": "n1",
+          "seconds": 71.2955415
+        },
+        {
+          "phase": "lab",
+          "key": "n2",
+          "seconds": 9.509437
+        }
+      ],
+      "totalWaitSeconds": 93.9871885,
+      "evidence": "artifacts/acceptance/P8/20261019-174635-379ad5/p8-real-open-web/p8-real-summary.json",
+      "sha256": "EAB7674FC85D983A308B836A9C8ABD22C4B157C4CDF83483ADDC4C4C53785B99"
+    },
+    {
+      "scenario": "text",
+      "checks": 24,
+      "generationCalls": 5,
+      "timings": [
+        {
+          "phase": "source",
+          "coldSeconds": 0.1923581,
+          "cachedSeconds": 0.0178364,
+          "sourceCharacters": 404799
+        },
+        {
+          "phase": "plan",
+          "seconds": 6.0653709
+        },
+        {
+          "phase": "theory",
+          "key": "n1",
+          "seconds": 60.494113
+        },
+        {
+          "phase": "theory",
+          "key": "n2",
+          "seconds": 46.8528346
+        },
+        {
+          "phase": "theory",
+          "key": "n3",
+          "seconds": 67.137516
+        },
+        {
+          "phase": "cached-source-lesson",
+          "key": "n1",
+          "seconds": 50.8305994
+        }
+      ],
+      "totalWaitSeconds": 231.8592518,
+      "evidence": "artifacts/acceptance/P8/20261019-174635-379ad5/p8-real-text/p8-real-summary.json",
+      "sha256": "2776E5C59D135B32CEB8C54B712440AA95517CF3D16C8FDF7D9D093DCC59F4AC"
+    }
+  ],
+  "codeExecuted": false,
+  "syntheticProgressOnly": true,
+  "contentReview": "docs/assessment/P8-quality-20261019.md",
+  "timingScope": "Per logical task includes retrieval, dispatch, retries and validation; preparation separate; small sample, not p95. Cached source lesson is a new paid generation.",
+  "evidenceHashes": {
+    "summary.json": "C77731E4A9D6EAFD1E06CE5574B95071472E3904D4430534DB53A9871642E203",
+    "release-manifest.json": "25A6F7610C61D79668EE44FFAEB34365A7CDA5813A5F5C5E8407D0F42815EC3B",
+    "tests/current.trx": "986E60A4FC2927C4C555ADD4B2B5502D5980747C12ECB8ADF4CF275E00007687",
+    "ui/ui-summary.json": "D0A0156EA228E481F62625313ABB7D4468DC4FB32ACAF3C4B4A572A1FAE19A58",
+    "p4-ui/p4-ui-summary.json": "EEAC00BF1061403C49DA650B39D590E4B5AB5773D38E57E25762E00AAB22E114",
+    "p5-ui/p5-ui-summary.json": "80DFEF51934DA9E584796F4A48F9D3EF06073CE1141744457C4688762DD9BAD5",
+    "p6-ui/p6-ui-summary.json": "08EE81218AA2E46D24B68C78D8F261A689031B52D5617AC4F40F55F77815A16B",
+    "p7-ui/p7-ui-summary.json": "9F4CD010DC44F936F15BC31360D70C89E7E7A279985F12D22568D08C2DF4DBC6",
+    "web-ui/web-ui.json": "5560AAD4F69D7A45A625B69741B7806EB9FDD22F36CA4875C33DFF49EF71A5FF",
+    "p8-ui/p8-ui-summary.json": "32DAEE9AD9B584EF21B199CADE2A73F145076ABF031C54DBDEE98CF4AC0273AF"
+  },
+  "packageVerification": {
+    "version": "1.1.0-rc.1",
+    "binaryCommit": "14d30a94a436fd11c8013a79fd25b335286e849d",
+    "packageSha256": "3DDC17E2346A4DB6B5116EFD726F3D67D93C70EC0A23DFCBEC119DD56D592B2C",
+    "zipEntriesVerified": 131,
+    "startupChecks": 5,
+    "startupFailed": 0,
+    "codeExecuted": false,
+    "manualPending": true
+  },
+  "packageVerificationEvidence": "artifacts/releases/1.1.0-rc.1/archive-verification.json",
+  "traceability": {
+    "T19": "Strategy/GeneralPractice/Plan tests; P8 UI; math/network/cross/c/cpp real",
+    "T20": "WeeklyStudyTime/Plan compatibility tests; P8 UI; real scenarios at different hours",
+    "T21": "Collection/OCR tests; real OCR fingerprint/pages + 404799-character text",
+    "T22": "WebLearning/OI tests; real oi/open-web + old web/oi",
+    "T23": "AdaptiveBudget/timeout/cancel tests; per-case timing summaries",
+    "T24": "P4/P6/P8 WebView checks and screenshots",
+    "T25": "Migration/P6 deletion/learning tests; restart desktop checks",
+    "T26": "Egress/filesystem/renderer/OCR consent tests and no-execution-dependencies stage"
+  }
+}

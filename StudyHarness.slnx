@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/StudyHarness.Application/StudyHarness.Application.csproj" />
+    <Project Path="src/StudyHarness.Contracts/StudyHarness.Contracts.csproj" />
+    <Project Path="src/StudyHarness.Desktop/StudyHarness.Desktop.csproj" />
+    <Project Path="src/StudyHarness.Domain/StudyHarness.Domain.csproj" />
+    <Project Path="src/StudyHarness.Infrastructure/StudyHarness.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/StudyHarness.HostProbe/StudyHarness.HostProbe.csproj" />
+    <Project Path="tests/StudyHarness.Tests/StudyHarness.Tests.csproj" />
+  </Folder>
+</Solution>

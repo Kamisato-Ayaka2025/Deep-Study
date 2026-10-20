@@ -1,0 +1,16 @@
+root = true
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+[*.{json,yml,yaml}]
+indent_size = 2
+# Windows PowerShell 5.1 decodes BOM-less scripts with the system ANSI code page,
+# corrupting non-ASCII literals such as the required round-record headings. Keep
+# the BOM so scripts/verify.ps1 runs on a stock Windows host without PowerShell 7.
+[*.ps1]
+charset = utf-8-bom
+[*.cmd]
+end_of_line = crlf

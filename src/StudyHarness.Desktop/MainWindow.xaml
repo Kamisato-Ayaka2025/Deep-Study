@@ -1,0 +1,109 @@
+<Window x:Class="StudyHarness.Desktop.MainWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Deep Study" Icon="Assets/deep-study.ico" Width="1240" Height="880" MinWidth="960" MinHeight="700"
+ Background="#F7F9FE" FontFamily="Microsoft YaHei UI" FontSize="14" WindowStartupLocation="CenterScreen">
+ <Grid>
+  <Grid.ColumnDefinitions><ColumnDefinition Width="200"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+  <Border Background="#EDF3FF" BorderBrush="#DCE6FA" BorderThickness="0,0,1,0" Padding="20,30">
+   <DockPanel>
+    <StackPanel DockPanel.Dock="Top">
+     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+      <Image Source="Assets/deep-study.png" Width="42" Height="42" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="Deep Study 读书鲸" Margin="0,0,8,0"/>
+      <TextBlock Text="Deep Study" Foreground="#2563EB" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" TextWrapping="NoWrap"/>
+     </StackPanel>
+     <TextBlock Text="让好奇成为日常" Foreground="#64748B" FontSize="12" Margin="0,0,0,40"/>
+     <Button x:Name="NavChatButton" Content="＋   主对话" AutomationProperties.AutomationId="NavChat" Click="Chat_Click"/>
+     <Button x:Name="NavCoursesButton" Content="▤   课程" AutomationProperties.AutomationId="NavCourses" Click="Courses_Click"/>
+     <Button x:Name="NavSettingsButton" Content="⚙   设置" AutomationProperties.AutomationId="NavSettings" Click="Settings_Click"/>
+    </StackPanel>
+    <StackPanel VerticalAlignment="Bottom"><TextBlock Text="DEEP STUDY" FontSize="11" Foreground="#64748B"/><TextBlock Text="你的学习，从这里继续" Foreground="#64748B" FontSize="11" Margin="0,8,0,0"/></StackPanel>
+   </DockPanel>
+  </Border>
+  <Grid Grid.Column="1" Margin="36,28">
+   <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+   <ScrollViewer x:Name="MainScroll" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch">
+    <Grid Margin="0,0,12,0">
+     <StackPanel x:Name="ChatPanel" MaxWidth="940" HorizontalAlignment="Stretch">
+      <TextBlock Text="今天，想学些什么？" FontSize="30" FontWeight="SemiBold" Foreground="#172554"/>
+      <TextBlock Text="从一个目标开始，为你安排完整的学习路线。" Foreground="#64748B" Margin="0,10,0,24"/>
+      <StackPanel IsEnabled="{Binding CanEdit}">
+       <TextBlock Text="学习请求" FontWeight="SemiBold"/>
+       <TextBox Text="{Binding Request,UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="96" MaxHeight="180" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="PlanRequest"/>
+       <TextBlock Text="{Binding RecoveryStatus}" FontSize="11" Foreground="#64748B" HorizontalAlignment="Right"/>
+       <Expander x:Name="DetailsExpander" Header="更多细节（可填）"><StackPanel Margin="12">
+        <TextBlock Text="已有基础"/><TextBox Text="{Binding Background,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="PlanBackground"/>
+        <TextBlock Text="具体目标"/><TextBox Text="{Binding Goal,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="PlanGoal"/>
+        <TextBlock Text="每周投入（小时）"/><TextBox Text="{Binding Hours,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="PlanHours"/>
+       </StackPanel></Expander>
+       <Expander Header="联网寻找学习资料（可选）"><StackPanel Margin="12">
+        <TextBlock Text="搜索主题（留空使用学习请求）"/><TextBox Text="{Binding WebTopic,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="WebTopic"/>
+        <TextBlock Text="指定站点或正文 URL（可选）"/><TextBox Text="{Binding WebSite,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="WebSite"/>
+        <TextBlock Text="点击将向 DeepSeek 发送主题与公开网址，最多2次搜索和3次抓取，按服务商计费。" FontSize="12" Foreground="#64748B"/>
+        <Button Content="同意联网并获取资料" Click="AcquireWeb_Click" AutomationProperties.AutomationId="AcquireWeb" HorizontalAlignment="Left"/>
+        <Expander x:Name="WebSourcesExpander" Header="来源详情"><TextBox Text="{Binding WebReport,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="220" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="WebSourceReport"/></Expander>
+       </StackPanel></Expander>
+       <Expander x:Name="ImportExpander" Header="导入自己的资料（可选）">
+        <StackPanel x:Name="WorkspacePanel" Margin="12" IsEnabled="{Binding CanOperate}">
+         <TextBlock Text="支持 PDF、.c、.cpp。目录会递归导入支持的文件，源文件保持只读。" Foreground="#64748B" FontSize="12"/>
+         <WrapPanel><Button Content="导入文件" Click="ImportFile_Click" AutomationProperties.AutomationId="ImportFile"/><Button Content="导入目录" Click="ImportFolder_Click" AutomationProperties.AutomationId="ImportFolder" Margin="8,4"/></WrapPanel>
+         <ItemsControl ItemsSource="{Binding References}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding Locator.SourceLabel}" Foreground="#2563EB" Margin="0,3"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+         <TextBlock Text="{Binding Status}" FontSize="12" TextWrapping="Wrap" AutomationProperties.AutomationId="WorkspaceStatus"/>
+         <Expander x:Name="OcrExpander" Header="扫描页识别与教材详情"><StackPanel>
+          <ComboBox ItemsSource="{Binding Collections}" SelectedItem="{Binding SelectedCollection}" DisplayMemberPath="Label" AutomationProperties.AutomationId="OcrCollection"/>
+          <Expander Header="教材结构"><TextBox Text="{Binding CollectionStructure,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="200" VerticalScrollBarVisibility="Auto"/></Expander>
+          <TextBlock Text="全书已建立页索引。扫描页按批识别，每批最多20页；输入页序，例如1-20。识别后须对照原页复核。" FontSize="12"/>
+          <TextBox Text="{Binding OcrPages,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="OcrPages"/>
+          <Button Content="准备页图并预览外发范围" Click="PrepareOcr_Click" AutomationProperties.AutomationId="PrepareOcr"/>
+          <TextBox Text="{Binding OcrPreview,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="160" VerticalScrollBarVisibility="Auto"/>
+          <Button Content="同意本批页图外发并识别" Click="RunOcr_Click" AutomationProperties.AutomationId="RunOcr"/>
+          <Button Content="将所选教材加入本计划" Click="UseCollection_Click"/>
+         </StackPanel></Expander>
+        </StackPanel>
+       </Expander>
+       <Button Content="形成发送内容" Click="PreparePlan_Click" AutomationProperties.AutomationId="PreparePlan" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Margin="0,18,0,8"/>
+      </StackPanel>
+      <Expander Header="完整外发内容" IsExpanded="True"><TextBox Text="{Binding Preview,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MinHeight="80" MaxHeight="260" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="PlanPreview"/></Expander>
+      <WrapPanel><Button Content="发送并拟定计划" Click="ProposePlan_Click" IsEnabled="{Binding CanEdit}" AutomationProperties.AutomationId="ProposePlan" Style="{StaticResource PrimaryButton}"/><Button Content="拒绝发送" Click="DenyPlan_Click" IsEnabled="{Binding CanEdit}" AutomationProperties.AutomationId="DenyPlan" Margin="8,4"/><Button Content="取消请求" Click="CancelPlan_Click" AutomationProperties.AutomationId="CancelPlan"/></WrapPanel>
+      <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#2563EB" Margin="0,12" AutomationProperties.AutomationId="PlanningStatus"/>
+      <TextBlock Text="完整待确认计划" FontSize="22" FontWeight="SemiBold" Margin="0,22,0,8"/>
+      <TextBox Text="{Binding Summary,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MinHeight="120" MaxHeight="420" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="PlanSummary"/>
+      <Expander Header="补充计划信息" AutomationProperties.AutomationId="OpenClarification"><StackPanel Margin="12">
+       <ItemsControl ItemsSource="{Binding ClarificationQuestions}"/>
+       <TextBox Text="{Binding ClarificationAnswer,UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanClarify}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" MaxHeight="180" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="ClarificationAnswer"/>
+       <TextBlock Text="填写后，点击上方「形成发送内容」重新核对并发送。" Foreground="#64748B" FontSize="12"/>
+      </StackPanel></Expander>
+      <TextBlock Text="{Binding ConfirmationHint}" TextWrapping="Wrap" Foreground="#64748B" Margin="0,12" AutomationProperties.AutomationId="ConfirmationHint"/>
+      <CheckBox Content="我已核对完整计划，理解确认后不可修改" IsChecked="{Binding AckFrozen}" IsEnabled="{Binding CanEdit}" AutomationProperties.AutomationId="AckFrozen"/>
+      <Button Content="确认计划，开始学习" Click="ConfirmPlan_Click" IsEnabled="{Binding CanConfirm}" AutomationProperties.AutomationId="ConfirmPlan" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,14"/>
+     </StackPanel>
+     <StackPanel x:Name="CoursesPanel" Visibility="Collapsed">
+      <TextBlock Text="我的课程" FontSize="30" FontWeight="SemiBold" Foreground="#172554"/>
+      <TextBlock Text="每一次学习，都算数。" Foreground="#64748B" Margin="0,10,0,24"/>
+      <StackPanel x:Name="CourseList"/>
+      <TextBlock x:Name="NoSubjects" Text="还没有课程，去主对话制定你的第一份学习计划。" Foreground="#64748B" Margin="0,20"/>
+      <StackPanel x:Name="CourseMap" Visibility="Collapsed">
+       <Button Content="←" Click="CourseBack_Click" ToolTip="返回我的课程" AutomationProperties.AutomationId="CourseBack" Width="44" HorizontalAlignment="Left"/>
+       <TextBlock x:Name="CourseTitle" FontSize="24" FontWeight="SemiBold" Margin="0,10"/>
+       <TextBlock Text="单击查看课程详情 · 双击开始学习。路线表示建议学习顺序，具体前置关系见课程详情。" Foreground="#64748B" FontSize="12"/>
+       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Height="420" Margin="0,16" Background="White"><Canvas x:Name="CourseCanvas" AutomationProperties.AutomationId="CourseGraph"/></ScrollViewer>
+       <TextBox Text="{Binding Detail,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MinHeight="100" MaxHeight="180" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="NodeDetail"/>
+      </StackPanel>
+     </StackPanel>
+     <StackPanel x:Name="SettingsPanel" Visibility="Collapsed" MaxWidth="760" HorizontalAlignment="Left">
+      <TextBlock Text="设置" FontSize="30" FontWeight="SemiBold" Foreground="#172554"/>
+      <TextBlock Text="连接 DeepSeek，准备开始学习。" Foreground="#64748B" Margin="0,10,0,30"/>
+      <TextBlock Text="模型名称"/><TextBox Text="{Binding Model,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="Model" MinWidth="480"/>
+      <TextBlock Text="API 密钥"/><PasswordBox x:Name="ApiKey" Padding="12" Margin="0,8" MaxLength="4096" PasswordChanged="ApiKey_PasswordChanged" AutomationProperties.Name="API 密钥"/>
+      <TextBlock Text="{Binding CredentialStatus}" Foreground="#64748B" Margin="0,0,0,12"/>
+      <TextBlock Text="密钥加密保存在本机，留空保存不会删除旧密钥。" Foreground="#64748B" FontSize="12"/>
+      <WrapPanel Margin="0,20"><Button Content="保存设置" Click="Save_Click" IsEnabled="{Binding CanSave}" AutomationProperties.AutomationId="Save" Style="{StaticResource PrimaryButton}"/><Button Content="放弃未保存输入" Click="Reload_Click" Margin="8,4"/></WrapPanel>
+      <Button Content="检测 DeepSeek 连接" Click="Probe_Click" IsEnabled="{Binding CanSave}" HorizontalAlignment="Left" AutomationProperties.AutomationId="CheckConnection"/>
+      <TextBlock Text="点击即发送「你是什么模型？」至 DeepSeek 官方接口中的已保存模型，按服务商计费，不附带学习资料。下方显示请求配置与原始回复；模型自述不用于身份认证。" TextWrapping="Wrap" FontSize="12" Foreground="#64748B" Margin="0,10"/>
+      <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,20" Foreground="#2563EB" AutomationProperties.AutomationId="ConnectionStatus"/>
+     </StackPanel>
+    </Grid>
+   </ScrollViewer>
+   <TextBlock Grid.Row="1" Text="{Binding Status}" Foreground="#64748B" FontSize="11" MaxHeight="45" Margin="0,14,0,0" AutomationProperties.AutomationId="Status"/>
+  </Grid>
+ </Grid>
+</Window>

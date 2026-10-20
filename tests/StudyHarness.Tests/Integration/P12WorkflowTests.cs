@@ -1,0 +1,162 @@
+using System.Text.Json;
+using StudyHarness.Application;
+using StudyHarness.Contracts;
+using StudyHarness.Desktop;
+using StudyHarness.Infrastructure;
+using UglyToad.PdfPig.Writer;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Core;
+using Xunit;
+
+namespace StudyHarness.Tests.Integration;
+
+public sealed class P12WorkflowTests : IDisposable
+{
+    private readonly string root = Path.Combine(Path.GetTempPath(), "StudyHarness-p12", Guid.NewGuid().ToString());
+    private sealed class Provider : IModelProvider
+    {
+        public string Destination => "local:p12";
+        public List<ApprovedModelRequest> Requests { get; } = [];
+        public Task<Result<ProviderReply>> SendAsync(ApprovedModelRequest request, CancellationToken ct)
+        {
+            Requests.Add(request);
+            var plan = new PlanCandidate("集合", "基础", "理解集合", 120, "Math", [], [], [], ["s1"],
+                [new("n1", "集合定义", "theory", ["理解集合"], [], 30, null), new("n2", "集合运算", "theory", ["理解运算"], ["n1"], 30, null)]);
+            return Task.FromResult(Result<ProviderReply>.Success(new(JsonSerializer.Serialize(plan, Wire.Options), true, ReadSourceIds: ["s1"], ToolCalls: 1)));
+        }
+    }
+    private sealed class Web : IWebSources
+    {
+        public Task<IReadOnlyList<WebHit>> SearchAsync(string query, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<WebHit>>([new("集合", "https://oi.wiki/math/set/")]);
+        public Task<WebPage> FetchAsync(string url, CancellationToken ct) =>
+            Task.FromResult(new WebPage(url,"集合","集合定义：集合表示确定对象的全体。元素不能重复计数。例如集合{1,2}有两个元素。",DateTimeOffset.UnixEpoch));
+    }
+    private async Task<(PlanningService Service, Provider Provider, SourceRef Reference, KnowledgeStore Knowledge, Guid Library)> Setup()
+    {
+        Directory.CreateDirectory(root);
+        var knowledge = new KnowledgeStore(root);
+        var library = Path.Combine(root, "library"); Directory.CreateDirectory(library);
+        var selected = (await knowledge.SwitchAsync(new(Guid.NewGuid(), 0, HostSelection.FromFolderPicker(library)))).Value!;
+        var path = Path.Combine(root, "source.c"); await File.WriteAllTextAsync(path, "// 集合表示确定对象的全体。\nint a = 1;");
+        var imported = await knowledge.ImportAsync(new(Guid.NewGuid(), 0, HostSelection.FromPlanFilePicker(path)), selected.Id);
+        var provider = new Provider();
+        return (new(new SqlitePlanningStore(root), knowledge, new(new SqliteSettingsStore(root)), new(provider), new PlanParser(), explicitSourcesOnly: true),
+            provider, imported.Value!.References![0], knowledge, selected.Id);
+    }
+    [Fact]
+    public async Task IncompleteInputReferencesAndClarificationSurviveFreshInstanceWithoutDispatch()
+    {
+        var f = await Setup();
+        var vm = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(root));
+        await vm.RestoreSessionAsync();
+        vm.Request = "学习集合"; vm.Background = "基础"; vm.Goal = "理解集合"; vm.Hours = "尚未填完";
+        vm.WebTopic = "集合"; vm.WebSite = "example.org"; vm.ClarificationAnswer = "我的未提交回答";
+        vm.SetReferences([f.Reference]);
+        var collectionId = Guid.NewGuid(); vm.SetImportState("21-40",collectionId);
+        var restored = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(root));
+        await restored.RestoreSessionAsync();
+        Assert.Equal(vm.Request, restored.Request); Assert.Equal(vm.Hours, restored.Hours);
+        Assert.Equal(vm.WebTopic, restored.WebTopic); Assert.Equal(vm.WebSite, restored.WebSite);
+        Assert.Equal(vm.ClarificationAnswer, restored.ClarificationAnswer);
+        Assert.Equal("21-40",restored.SavedOcrPages); Assert.Equal(collectionId,restored.SavedOcrCollectionId);
+        Assert.Equal([f.Reference], restored.LocalReferences); Assert.Empty(restored.Preview);
+        Assert.Empty(f.Provider.Requests); Assert.Empty(await f.Service.ListAsync());
+    }
+    [Fact]
+    public async Task OneSubmissionChainDenyClearEditInvalidationAndConfirmCrashRecovery()
+    {
+        var f = await Setup();
+        var vm = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(root));
+        vm.Request = "学习集合"; vm.Background = "基础"; vm.Goal = "理解集合"; vm.Hours = "2"; vm.Scope = "Math";
+        vm.SetReferences([f.Reference]);
+        await vm.FormSubmissionAsync(); Assert.True(vm.CanSendPlan);
+        await vm.ProposeAsync(false); Assert.Empty(vm.Preview); Assert.Empty(f.Provider.Requests);
+        await vm.FormSubmissionAsync(); vm.Goal = "新目标"; await vm.ProposeAsync(true); Assert.Empty(f.Provider.Requests);
+        vm.Goal = "理解集合"; await vm.FormSubmissionAsync(); await vm.ProposeAsync(true);
+        Assert.Single(f.Provider.Requests); vm.AckFrozen = true; Assert.True(vm.CanConfirm, vm.Status + " | " + vm.ConfirmationHint);
+        await vm.ConfirmAsync(); Assert.NotNull(vm.ConfirmedSubject);
+        // Simulate a crash after the durable confirmation but before UI resets the journal.
+        var restored = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(root));
+        await restored.RestoreSessionAsync();
+        Assert.Empty(restored.Request); Assert.Empty(restored.LocalReferences); Assert.True(restored.CanEdit);
+        Assert.Single(await f.Service.ListAsync(), d => d.Confirmed);
+    }
+    [Fact]
+    public async Task ExplicitSourcesNeverFallBackToHistoricalLibrary()
+    {
+        var f = await Setup();
+        var draft = (await f.Service.StartAsync(new(Guid.NewGuid(), 0, new("集合", null, null, 120, "Math", [])))).Value!;
+        var result = await f.Service.PrepareAsync(draft.Id, draft.Revision);
+        Assert.Equal(ErrorCode.INSUFFICIENT_SOURCES, result.Error!.Code); Assert.Empty(f.Provider.Requests);
+    }
+    [Fact]
+    public async Task LocalAndWebReferencesCombineAndSurviveRestoreWithoutBorrowingOldLibrary()
+    {
+        var f = await Setup();
+        var vm = new PlanningViewModel(f.Service, web:new WebLearningService(new Web(),f.Knowledge,f.Knowledge,Path.Combine(root,"library")),
+            sessionStore:new SqlitePlanningSessionStore(root));
+        vm.Request = "学习集合"; vm.SetReferences([f.Reference]); vm.WebTopic = "集合"; vm.WebSite = "oi.wiki";
+        await vm.AcquireWebAsync();
+        Assert.Contains("网页正文已保存",vm.Status);
+        await vm.FormSubmissionAsync();
+        var draft = Assert.Single(await f.Service.ListAsync());
+        Assert.Equal(2,draft.Input.PreferredReferences.Count);
+        Assert.Contains(f.Reference,draft.Input.PreferredReferences);
+        var restored = new PlanningViewModel(f.Service,sessionStore:new SqlitePlanningSessionStore(root));
+        await restored.RestoreSessionAsync();
+        Assert.Equal(2,restored.LocalReferences.Count);
+        restored.NewDraft();
+        Assert.Empty(restored.LocalReferences);
+        restored.Request = "学习基础集合";
+        await restored.FormSubmissionAsync();
+        Assert.True(restored.CanSendPlan, restored.Status); Assert.DoesNotContain("// 集合",restored.Preview); Assert.DoesNotContain("集合不能",restored.Preview);
+        Assert.Empty(restored.Selected!.Draft.Input.PreferredReferences);
+        Assert.Empty(f.Provider.Requests);
+    }
+    [Fact]
+    public async Task PdfAndCodeDirectoryImportIndexesWholePdfAndExcludesOtherFiles()
+    {
+        var f = await Setup(); var directory = Path.Combine(root, "materials"); Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, "a.c"), "int x;");
+        await File.WriteAllTextAsync(Path.Combine(directory, "b.cpp"), "int y;");
+        await File.WriteAllTextAsync(Path.Combine(directory, "private.txt"), "not-authorized");
+        var pdf = new PdfDocumentBuilder(); var font = pdf.AddStandard14Font(Standard14Font.Helvetica);
+        for (var i = 0; i < 3; i++) pdf.AddPage(400,500).AddText("Chapter " + i + " Sets contain distinct elements.", 12, new PdfPoint(20,450), font);
+        await File.WriteAllBytesAsync(Path.Combine(directory, "book.pdf"), pdf.Build());
+        var result = await f.Knowledge.ImportAsync(new(Guid.NewGuid(), 0, HostSelection.FromPlanFolderPicker(directory)), f.Library);
+        Assert.True(result.Ok); Assert.Equal(3, result.Value!.References!.Count);
+        Assert.Contains(result.Value.Files, file => !file.Ok && file.SourceLabel == "private.txt");
+        var collection = Assert.Single(await f.Knowledge.CollectionsAsync(f.Library));
+        Assert.Equal(3, collection.Collection.EntryCount); Assert.Equal(3, collection.Collection.ReadyCount);
+        Assert.All(result.Value.References, r => Assert.DoesNotContain("private", r.Locator.SourceLabel));
+    }
+    [Fact]
+    public async Task ConnectionCheckSendsOnlyFixedQuestionAndOneRequest()
+    {
+        var f = await Setup();
+        var vm = new ShellViewModel(new(new SqliteSettingsStore(root)), new(f.Provider), new SafeLog(Path.Combine(root,"log.jsonl")));
+        await vm.LoadAsync(); await vm.CheckConnectionAsync();
+        var request = Assert.Single(f.Provider.Requests);
+        Assert.Equal("你是什么模型？", Assert.Single(request.Sources).Text);
+        Assert.Equal(512, request.MaxOutputTokens); Assert.Contains("连接成功", vm.Status);
+    }
+    [Fact]
+    public async Task UnknownRecoveryVersionFailsClosedWithoutReplacingSavedInput()
+    {
+        var f = await Setup();
+        var journal = new SqlitePlanningSessionStore(root);
+        var vm = new PlanningViewModel(f.Service,sessionStore:journal); vm.Request = "不得丢失";
+        using (var db = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(root,"planning-session.db")};Pooling=False"))
+        {
+            db.Open(); using var command = db.CreateCommand(); command.CommandText = "PRAGMA user_version=99"; command.ExecuteNonQuery();
+        }
+        Assert.Throws<InvalidDataException>(() => journal.Load());
+        var restored = new PlanningViewModel(f.Service,sessionStore:journal); await restored.RestoreSessionAsync();
+        Assert.Contains("恢复失败",restored.RecoveryStatus);
+        using var check = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(root,"planning-session.db")};Pooling=False");
+        check.Open(); using var query = check.CreateCommand(); query.CommandText = "SELECT json FROM session WHERE id=1";
+        Assert.Equal("不得丢失",JsonSerializer.Deserialize<PlanningSession>((string)query.ExecuteScalar()!,Wire.Options)!.Request);
+    }
+    public void Dispose() { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); if (Directory.Exists(root)) Directory.Delete(root, true); }
+}

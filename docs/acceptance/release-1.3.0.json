@@ -1,0 +1,38 @@
+{
+  "version": "1.3.0",
+  "commit": "76cd67bf19ae6d6370604b5ca8cf1d38c25825e1",
+  "tag": "v1.3.0",
+  "packageSha256": "A3F798BEF24347F523EB4A225976749949A8E9482E5B8D56C269F1FE477CA6D7",
+  "packageEntries": 131,
+  "retainedArchive": "artifacts/releases/1.3.0",
+  "functionalBaseline": "17959667c6799cebd0dedc313ba506fb9716bcb6",
+  "functionalDiff": "VERSION and two static MainWindow.xaml labels only",
+  "signoff": "docs/acceptance/P10-signoff.md",
+  "manualAccepted": true,
+  "acceptanceScope": "P10 including source fix and free learning",
+  "p8Acceptance": "unchanged",
+  "paidApiCalls": 0,
+  "newOcrCalls": 0,
+  "codeExecuted": false,
+  "remotePublished": false,
+  "evidenceRoot": "artifacts/acceptance/P10/release-1.3.0",
+  "fullGateRerun": false,
+  "previousEvidenceScope": "rc.3 complete 17-stage offline gate: 431 tests, 274 desktop checks; retained unchanged",
+  "databaseVersions": {
+    "planning": 2,
+    "learning": 8,
+    "collections": 2,
+    "knowledge": 2
+  },
+  "validation": {
+    "startupGroups": 5,
+    "lockedRestore": "passed",
+    "tests": 431,
+    "failed": 0,
+    "skipped": 0,
+    "p10DesktopChecks": 133,
+    "zipFilesVerified": 131,
+    "build": "passed, 0 warnings/errors"
+  },
+  "productVersion": "1.3.0+76cd67bf19ae6d6370604b5ca8cf1d38c25825e1"
+}

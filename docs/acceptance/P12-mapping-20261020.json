@@ -1,0 +1,22 @@
+{
+  "status": "self_checked",
+  "scope": "Remove visible original-to-display option mapping only",
+  "packageFilesVerified": 129,
+  "desktopChecks": 133,
+  "evidence": [
+    "artifacts/p12-mapping-build.log",
+    "artifacts/p12-mapping-publish.log",
+    "artifacts/releases/1.4.0-rc.4/quiz-check/p10-ui-summary.json"
+  ],
+  "commit": "0237b7aca35a1d479116deeaef86e2260f89d089",
+  "packageSha256": "7DC58AB7B14D5CEA1B873A6AE39D132ACD3ABF9058F32A6C7643C9E9DCC01FCE",
+  "buildErrors": 0,
+  "buildWarnings": 0,
+  "failed": 0,
+  "manualAccepted": false,
+  "fullGateRerun": false,
+  "userDataModified": false,
+  "version": "1.4.0-rc.4",
+  "generatedCodeExecuted": false,
+  "paidApiCalls": 0
+}

@@ -1,0 +1,22 @@
+<Window x:Class="StudyHarness.Desktop.LearningWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StudyHarness.Desktop" Icon="Assets/deep-study.ico" Title="Deep Study · 学习" WindowState="Maximized" Width="1350" Height="900" MinWidth="1050" MinHeight="700" FontFamily="Microsoft YaHei UI" FontSize="13" Background="#F4F7FB">
+ <Window.Resources><BooleanToVisibilityConverter x:Key="VisibleWhenTrue"/></Window.Resources>
+ <Grid Margin="16"><Grid.ColumnDefinitions><ColumnDefinition Width="300"/><ColumnDefinition Width="16"/><ColumnDefinition/><ColumnDefinition Width="330"/></Grid.ColumnDefinitions>
+  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+   <Button Content="←" Click="Back_Click" ToolTip="返回课程" HorizontalAlignment="Left"/><TextBlock Text="{Binding Title}" FontSize="25" FontWeight="Bold" Margin="0,12"/>
+
+   <Button x:Name="GenerateArticleButton" Content="{Binding GenerateLabel}" Click="Generate_Click" IsEnabled="{Binding CanGenerate}" Padding="16,12" AutomationProperties.AutomationId="GenerateArticle"/>
+   <Button Content="取消生成" Click="Cancel_Click" Margin="0,8" Visibility="{Binding IsGenerating,Converter={StaticResource VisibleWhenTrue}}"/>
+   <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#195E6A" Margin="0,14" AutomationProperties.AutomationId="LearningStatus"/>
+   <TextBlock Text="生成将使用当前模型和本课固定资料。取消可能仍产生已发送请求的用量。" FontSize="12" Foreground="#536D80" TextWrapping="Wrap"/>
+   <Expander Header="生成详情与用量" Margin="0,18,0,0">
+    <StackPanel><TextBlock Text="{Binding Tasks}" TextWrapping="Wrap"/><Button Content="查看外发详情（可选）" Click="Prepare_Click" Margin="0,8"/><Button x:Name="HideEgressButton" Content="隐藏外发详情" Click="HidePreview_Click" Visibility="{Binding HasPreview,Converter={StaticResource VisibleWhenTrue}}" AutomationProperties.AutomationId="HideEgressPreview"/><TextBox x:Name="EgressPreviewText" Visibility="{Binding HasPreview,Converter={StaticResource VisibleWhenTrue}}" Text="{Binding Preview,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="250" VerticalScrollBarVisibility="Auto"/></StackPanel>
+   </Expander>
+   <Expander Header="历史版本" Margin="0,12">
+    <StackPanel><ComboBox ItemsSource="{Binding History}" SelectedItem="{Binding SelectedHistory}" DisplayMemberPath="ArchivedAt"/><Button Content="阅读所选历史版本" Click="History_Click"/><Button Content="返回当前文章" Click="Open_Click"/></StackPanel>
+   </Expander>
+   <TextBlock Text="实验材料请从课程图打开 · 自行测评" Foreground="#94522B" Margin="0,16"/>
+  </StackPanel></ScrollViewer>
+  <local:TutoringPane x:Name="Tutor" Grid.Column="3" Visibility="Collapsed"/>
+  <local:LessonWebView x:Name="Reader" Grid.Column="2"/>
+ </Grid>
+</Window>

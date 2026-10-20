@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../StudyHarness.Application/StudyHarness.Application.csproj" />
+    <ProjectReference Include="../StudyHarness.Contracts/StudyHarness.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" /><PackageReference Include="PdfPig" Version="0.1.13" /><PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" /></ItemGroup>
+  <ItemGroup><PackageReference Include="JsonSchema.Net" Version="7.3.4" /><EmbeddedResource Include="../../schemas/plan.schema.json" LogicalName="plan.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/theory-lesson.schema.json" LogicalName="theory-lesson.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/plan-v2.schema.json" LogicalName="plan-v2.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/theory-lesson-v2.schema.json" LogicalName="theory-lesson-v2.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/theory-lesson-v3.schema.json" LogicalName="theory-lesson-v3.schema.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/theory-lesson-v4.schema.json" LogicalName="theory-lesson-v4.schema.json" /></ItemGroup>
+</Project>

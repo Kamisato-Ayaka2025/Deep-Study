@@ -1,0 +1,170 @@
+{
+  "evidenceRoot": "artifacts/acceptance/P11/20261020-173013-d6b07b",
+  "phase": "P11",
+  "commit": "f558fbc5e0b816b627cfbe4288e99a8bfcc3bcbd",
+  "version": "1.3.1-rc.1",
+  "paidApiCalls": 0,
+  "archive": "artifacts/releases/1.3.1-rc.1",
+  "stableVersion": "1.3.0",
+  "p8Acceptance": "unchanged",
+  "manualAccepted": false,
+  "newOcrCalls": 0,
+  "tag": "v1.3.1-rc.1",
+  "packageFilesVerified": 132,
+  "generatedCodeExecuted": false,
+  "status": "self_checked",
+  "userDataModified": false,
+  "validation": {
+    "buildErrors": 0,
+    "skipped": 0,
+    "buildWarnings": 0,
+    "graphSamples": 15,
+    "tests": 439,
+    "desktopIndividualChecks": 314,
+    "desktopChecksBySuite": {
+      "P4": 6,
+      "P5": 9,
+      "P9": 50,
+      "Web": 10,
+      "P8": 30,
+      "P7": 12,
+      "P6": 25,
+      "P11": 39,
+      "P10": 133
+    },
+    "stages": 18,
+    "startupGroups": 9,
+    "localPreparationSamples": 5,
+    "failed": 0
+  },
+  "performance": {
+    "environment": {
+      "runtime": "10.0.12",
+      "processors": 32,
+      "os": "Microsoft Windows NT 10.0.26200.0"
+    },
+    "baseline": "artifacts/acceptance/P11/baseline/performance.json",
+    "interaction": [
+      {
+        "run": 0,
+        "nodes": 80,
+        "feedbackMilliseconds": 2.1027,
+        "maxHeartbeatGapMilliseconds": 47.022,
+        "localPreparationMilliseconds": 1875.2579,
+        "injectedLocalDelayPerReadMilliseconds": 350
+      },
+      {
+        "run": 1,
+        "nodes": 80,
+        "feedbackMilliseconds": 0.1085,
+        "maxHeartbeatGapMilliseconds": 31.3354,
+        "localPreparationMilliseconds": 1827.7094,
+        "injectedLocalDelayPerReadMilliseconds": 350
+      },
+      {
+        "run": 2,
+        "nodes": 80,
+        "feedbackMilliseconds": 0.1373,
+        "maxHeartbeatGapMilliseconds": 31.4091,
+        "localPreparationMilliseconds": 1834.7286,
+        "injectedLocalDelayPerReadMilliseconds": 350
+      },
+      {
+        "run": 3,
+        "nodes": 80,
+        "feedbackMilliseconds": 0.059,
+        "maxHeartbeatGapMilliseconds": 45.8225,
+        "localPreparationMilliseconds": 1839.0331,
+        "injectedLocalDelayPerReadMilliseconds": 350
+      },
+      {
+        "run": 4,
+        "nodes": 80,
+        "feedbackMilliseconds": 0.0586,
+        "maxHeartbeatGapMilliseconds": 31.6869,
+        "localPreparationMilliseconds": 1837.0875,
+        "injectedLocalDelayPerReadMilliseconds": 350
+      }
+    ],
+    "graph": [
+      {
+        "nodes": 10,
+        "optimizedMedianMs": 0.3647,
+        "baselineMedianMs": 13.0702,
+        "baselineMaxMs": 69.4981,
+        "baselineMilliseconds": [
+          12.7352,
+          12.9538,
+          13.0702,
+          13.134,
+          69.4981
+        ],
+        "optimizedMilliseconds": [
+          0.1845,
+          0.2061,
+          0.3647,
+          0.8562,
+          62.7088
+        ],
+        "optimizedMaxMs": 62.7088
+      },
+      {
+        "nodes": 100,
+        "optimizedMedianMs": 0.6883,
+        "baselineMedianMs": 452.978,
+        "baselineMaxMs": 633.6944,
+        "baselineMilliseconds": [
+          380.1424,
+          426.6194,
+          452.978,
+          569.0753,
+          633.6944
+        ],
+        "optimizedMilliseconds": [
+          0.5835,
+          0.5847,
+          0.6883,
+          11.5403,
+          80.7533
+        ],
+        "optimizedMaxMs": 80.7533
+      },
+      {
+        "nodes": 300,
+        "optimizedMedianMs": 1.7211,
+        "baselineMedianMs": 1417.6941,
+        "baselineMaxMs": 2298.7397,
+        "baselineMilliseconds": [
+          1385.9112,
+          1389.2721,
+          1417.6941,
+          1579.6573,
+          2298.7397
+        ],
+        "optimizedMilliseconds": [
+          1.5871,
+          1.6037,
+          1.7211,
+          1.7523,
+          222.0561
+        ],
+        "optimizedMaxMs": 222.0561
+      }
+    ],
+    "note": "UI stress includes 300 nodes beyond current plan limit; actual generation uses valid 80-node plan and offline provider. Model/network wait excluded."
+  },
+  "sourceHash": "753A1B1F0A31E022939A5CFEEA87F0E26D0FB3325C2D07B1725F6CC37A92060A",
+  "remotePublished": false,
+  "previousRuns": [
+    "20261020-172042-19a50d: first complete gate passed on 059da98",
+    "20261020-172646-37d664: 438 passed, 1 new fixture failed; retained"
+  ],
+  "packageSha256": "23B6FA08F8BC7FE40B35F696F89DEB99D26EDA286236CF220583D8A2097128B0",
+  "databaseMigration": false,
+  "archiveStartupSmoke": {
+    "evidence": "artifacts/releases/1.3.1-rc.1/startup-smoke.json",
+    "exitCode": 0,
+    "responsive": true,
+    "data": "isolated synthetic manual-data"
+  }
+}

@@ -1,0 +1,27 @@
+<Window x:Class="StudyHarness.Desktop.PlanClarificationWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Icon="Assets/deep-study.ico" Title="补充计划信息" Width="820" Height="760" MinWidth="620" MinHeight="560"
+ WindowStartupLocation="CenterOwner" Background="#F6F8FB" FontFamily="Microsoft YaHei UI" FontSize="14">
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel Margin="24">
+   <TextBlock Text="补充计划信息" FontSize="25" FontWeight="Bold"/>
+   <TextBlock Text="请逐项回答。接受默认值、没有固定期限或平台，都可以直接说明。保存回答不会立即发送请求。" Margin="0,12" TextWrapping="Wrap"/>
+   <ItemsControl ItemsSource="{Binding ClarificationQuestions}" AutomationProperties.AutomationId="ClarificationQuestions">
+    <ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,6" FontWeight="SemiBold"/></DataTemplate></ItemsControl.ItemTemplate>
+   </ItemsControl>
+   <TextBox Text="{Binding ClarificationAnswer,UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanClarify}"
+    AcceptsReturn="True" TextWrapping="Wrap" MinHeight="110" MaxHeight="220" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="ClarificationAnswer"/>
+   <Button Content="保存回答并预览外发" Click="SaveAnswer_Click" IsEnabled="{Binding CanClarify}" HorizontalAlignment="Left" AutomationProperties.AutomationId="SaveClarification"/>
+   <TextBlock Text="完整外发预览" FontWeight="Bold" Margin="0,12,0,4"/>
+   <TextBox Text="{Binding Preview,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Height="160" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="ClarificationPreview"/>
+   <WrapPanel>
+    <Button Content="同意发送并重新拟定计划" Click="Regenerate_Click" IsEnabled="{Binding CanSendPlan}" AutomationProperties.AutomationId="RegeneratePlan"/>
+    <Button Content="同意携带错误信息重发尝试" Click="Retry_Click" IsEnabled="{Binding CanRetryPlan}" AutomationProperties.AutomationId="RetryPlan"/>
+    <Button Content="取消请求" Click="Cancel_Click" AutomationProperties.AutomationId="CancelClarification"/>
+   </WrapPanel>
+   <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,10" Foreground="#185B72" AutomationProperties.AutomationId="ClarificationStatus"/>
+   <TextBlock Text="{Binding ConfirmationHint}" TextWrapping="Wrap" Margin="0,5" AutomationProperties.AutomationId="ClarificationHint"/>
+   <Button Content="返回主对话核对完整计划" Click="Return_Click" IsEnabled="{Binding CanOperate}" HorizontalAlignment="Left" AutomationProperties.AutomationId="ReturnToPlan"/>
+  </StackPanel>
+ </ScrollViewer>
+</Window>

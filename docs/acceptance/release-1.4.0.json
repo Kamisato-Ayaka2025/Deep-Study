@@ -1,0 +1,80 @@
+{
+  "newOcrCalls": 0,
+  "functionalDiff": "VERSION only; src/schemas/prompts/scripts unchanged from accepted rc.4",
+  "packageSha256": "43BDE8C992C6433DBF8D89E6C2E0A7332ECD23A008041E9E3D3999EB7C811287",
+  "signoff": "docs/acceptance/P12-signoff.md",
+  "manualAccepted": true,
+  "remotePublished": false,
+  "productVersion": "1.4.0+f66653bd3e134598388924066c44f166da2fa833",
+  "genericGateManualPending": "Retained verbatim; actual user signoff is recorded separately in P12-signoff.md and this release manifest.",
+  "tag": "v1.4.0",
+  "p8Acceptance": "unchanged",
+  "commit": "f66653bd3e134598388924066c44f166da2fa833",
+  "evidenceRoot": "artifacts/acceptance/P12/20261020-211557-a3ed97",
+  "paidApiCalls": 0,
+  "validation": {
+    "stages": 19,
+    "tests": 460,
+    "lockedRestore": "passed",
+    "archiveDesktopChecks": 48,
+    "skipped": 0,
+    "buildErrors": 0,
+    "failed": 0,
+    "desktopChecks": 389,
+    "desktopBySuite": {
+      "P9": 50,
+      "P10": 133,
+      "P8": 30,
+      "P5": 9,
+      "P4": 6,
+      "Hybrid": 27,
+      "P6": 25,
+      "P11": 39,
+      "P12": 48,
+      "Web": 10,
+      "P7": 12
+    },
+    "packageFilesMatched": 133,
+    "buildWarnings": 0
+  },
+  "version": "1.4.0",
+  "fullOfflineGateRerun": true,
+  "generatedCodeExecuted": false,
+  "courseData": {
+    "newSyntheticDemo": "artifacts/releases/1.4.0/manual-demo/synthetic-data",
+    "userDatabasesModified": false,
+    "oldLaunchersCopiedUnchanged": true,
+    "realDataLaunchersRunByAgent": false,
+    "moved": false,
+    "continuationEntries": [
+      {
+        "launcher": "start-current-data.cmd",
+        "data": "artifacts/releases/1.3.1-rc.1/manual-data"
+      },
+      {
+        "launcher": "start-earlier-data.cmd",
+        "data": "artifacts/releases/1.3.0-rc.1/manual-data"
+      },
+      {
+        "launcher": "start-previous-demo-data.cmd",
+        "data": "artifacts/releases/1.4.0-rc.1/manual-demo/synthetic-data"
+      },
+      {
+        "launcher": "start-rc2-demo-data.cmd",
+        "data": "artifacts/releases/1.4.0-rc.2/manual-demo/synthetic-data"
+      },
+      {
+        "launcher": "start-rc3-demo-data.cmd",
+        "data": "artifacts/releases/1.4.0-rc.3/manual-demo/synthetic-data"
+      },
+      {
+        "launcher": "start-rc4-demo-data.cmd",
+        "data": "artifacts/releases/1.4.0-rc.4/quiz-check/synthetic-data"
+      }
+    ]
+  },
+  "functionalBaseline": "0237b7a",
+  "archive": "artifacts/releases/1.4.0",
+  "candidateBaseline": "1.4.0-rc.4",
+  "acceptanceScope": "P12 / WP-P12-001..004 / REQ-055..062 including TURN-018..021 feedback"
+}

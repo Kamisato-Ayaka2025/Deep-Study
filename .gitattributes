@@ -1,0 +1,5 @@
+# .editorconfig declares LF repository-wide; make checkouts agree so unrelated
+# line-ending rewrites cannot appear in diffs. Files that genuinely need CRLF
+# (for example .bat/.cmd) must be declared explicitly here.
+* text=auto eol=lf
+*.cmd text eol=crlf

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schemaVersion", "libraryId", "nodeId", "versionId", "contentHash", "locator"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "libraryId": { "type": "string", "format": "uuid" },
+    "nodeId": { "type": "string", "format": "uuid" },
+    "versionId": { "type": "string", "format": "uuid" },
+    "contentHash": { "type": "string", "pattern": "^[A-F0-9]{64}$" },
+    "locator": {
+      "type": "object", "required": ["sourceLabel", "block"],
+      "properties": {
+        "sourceLabel": { "type": "string" }, "block": { "type": "string" },
+        "page": { "type": ["integer", "null"], "minimum": 1 },
+        "heading": { "type": ["string", "null"] }
+      }, "additionalProperties": false
+    }
+  }, "additionalProperties": false
+}

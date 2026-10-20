@@ -1,0 +1,551 @@
+{
+  "status": "self_checked",
+  "version": "1.1.0-rc.2",
+  "scope": "Focused planning reliability regression, not a rerun of the full historical P8 paid gate",
+  "criteria": "Within <=10 logical tasks per round, >=5 successes; <=3 dispatches per task, <=3 rounds per case; stop early after five successes",
+  "cases": [
+    {
+      "scenario": "algorithms",
+      "goal": "我想学习算法竞赛",
+      "weeklyMinutes": 120,
+      "round": 3,
+      "attempted": 5,
+      "passed": 5,
+      "firstPassed": 0,
+      "rawPassed": 0,
+      "calls": 11,
+      "passedThreshold": true,
+      "taskLimit": 10,
+      "dispatchLimitPerTask": 3,
+      "unrun": 5,
+      "manualPending": true,
+      "codeExecuted": false,
+      "records": [
+        {
+          "task": 1,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 22.8295287,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 25266,
+              "completionTokens": 2931,
+              "totalTokens": 28197
+            },
+            {
+              "promptTokens": 28339,
+              "completionTokens": 2989,
+              "totalTokens": 31328
+            }
+          ],
+          "nodes": 20,
+          "algorithms": 12
+        },
+        {
+          "task": 2,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 25.7527454,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 25266,
+              "completionTokens": 3312,
+              "totalTokens": 28578
+            },
+            {
+              "promptTokens": 28720,
+              "completionTokens": 3294,
+              "totalTokens": 32014
+            }
+          ],
+          "nodes": 23,
+          "algorithms": 12
+        },
+        {
+          "task": 3,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 21.8427358,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 25266,
+              "completionTokens": 2998,
+              "totalTokens": 28264
+            },
+            {
+              "promptTokens": 28406,
+              "completionTokens": 2985,
+              "totalTokens": 31391
+            }
+          ],
+          "nodes": 20,
+          "algorithms": 11
+        },
+        {
+          "task": 4,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 3,
+          "seconds": 31.171979,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 25266,
+              "completionTokens": 3000,
+              "totalTokens": 28266
+            },
+            {
+              "promptTokens": 28408,
+              "completionTokens": 2996,
+              "totalTokens": 31404
+            },
+            {
+              "promptTokens": 28427,
+              "completionTokens": 3002,
+              "totalTokens": 31429
+            }
+          ],
+          "nodes": 24,
+          "algorithms": 11
+        },
+        {
+          "task": 5,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 23.4954697,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 25266,
+              "completionTokens": 3000,
+              "totalTokens": 28266
+            },
+            {
+              "promptTokens": 28408,
+              "completionTokens": 3007,
+              "totalTokens": 31415
+            }
+          ],
+          "nodes": 20,
+          "algorithms": 12
+        }
+      ],
+      "evidence": "artifacts/acceptance/plan-repair-20261019/algorithms/round-3/summary.json"
+    },
+    {
+      "scenario": "linear",
+      "goal": "我想学习线性代数",
+      "weeklyMinutes": null,
+      "round": 1,
+      "attempted": 5,
+      "passed": 5,
+      "firstPassed": 2,
+      "rawPassed": 2,
+      "calls": 8,
+      "passedThreshold": true,
+      "taskLimit": 10,
+      "dispatchLimitPerTask": 3,
+      "unrun": 5,
+      "manualPending": true,
+      "codeExecuted": false,
+      "records": [
+        {
+          "task": 1,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 24.9481458,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 11062,
+              "completionTokens": 3335,
+              "totalTokens": 14397
+            },
+            {
+              "promptTokens": 15155,
+              "completionTokens": 3423,
+              "totalTokens": 18578
+            }
+          ],
+          "nodes": 30,
+          "algorithms": null
+        },
+        {
+          "task": 2,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 20.2146204,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 11062,
+              "completionTokens": 2823,
+              "totalTokens": 13885
+            },
+            {
+              "promptTokens": 14556,
+              "completionTokens": 2879,
+              "totalTokens": 17435
+            }
+          ],
+          "nodes": 26,
+          "algorithms": null
+        },
+        {
+          "task": 3,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 19.4441808,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 11062,
+              "completionTokens": 2613,
+              "totalTokens": 13675
+            },
+            {
+              "promptTokens": 14283,
+              "completionTokens": 2663,
+              "totalTokens": 16946
+            }
+          ],
+          "nodes": 24,
+          "algorithms": null
+        },
+        {
+          "task": 4,
+          "success": true,
+          "firstRequestSuccess": true,
+          "rawFirstValid": true,
+          "calls": 1,
+          "seconds": 13.3915243,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 11062,
+              "completionTokens": 3326,
+              "totalTokens": 14388
+            }
+          ],
+          "nodes": 30,
+          "algorithms": null
+        },
+        {
+          "task": 5,
+          "success": true,
+          "firstRequestSuccess": true,
+          "rawFirstValid": true,
+          "calls": 1,
+          "seconds": 13.7590188,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 11062,
+              "completionTokens": 3126,
+              "totalTokens": 14188
+            }
+          ],
+          "nodes": 29,
+          "algorithms": null
+        }
+      ],
+      "evidence": "artifacts/acceptance/plan-repair-20261019/linear/round-1/summary.json",
+      "scopeNote": "Linear passing round precedes final assistant/user repair transcript change and C++-only prompt refinements; no paid rerun. Final transcript validated by mocked HTTP and desktop tests."
+    },
+    {
+      "scenario": "cpp",
+      "goal": "我想学习C++",
+      "weeklyMinutes": null,
+      "round": 2,
+      "attempted": 6,
+      "passed": 5,
+      "firstPassed": 1,
+      "rawPassed": 1,
+      "calls": 13,
+      "passedThreshold": true,
+      "taskLimit": 10,
+      "dispatchLimitPerTask": 3,
+      "unrun": 4,
+      "manualPending": true,
+      "codeExecuted": false,
+      "records": [
+        {
+          "task": 1,
+          "success": true,
+          "firstRequestSuccess": true,
+          "rawFirstValid": true,
+          "calls": 1,
+          "seconds": 11.0406904,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 9108,
+              "completionTokens": 2662,
+              "totalTokens": 11770
+            }
+          ],
+          "nodes": 20,
+          "algorithms": 11
+        },
+        {
+          "task": 2,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 19.7724231,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 9108,
+              "completionTokens": 2791,
+              "totalTokens": 11899
+            },
+            {
+              "promptTokens": 12041,
+              "completionTokens": 2809,
+              "totalTokens": 14850
+            }
+          ],
+          "nodes": 20,
+          "algorithms": 14
+        },
+        {
+          "task": 3,
+          "success": false,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 3,
+          "seconds": 36.6816845,
+          "error": {
+            "code": "INVALID_MODEL_OUTPUT",
+            "message": "PALG002 algorithms[0]：缺少theory节点的algorithmKeys映射；每个算法至少一课一题，将实际对应节点映射到此算法，不能理论全填[]，不得删除算法规避。",
+            "retryable": false,
+            "correlationId": "eab8f176-0cd6-4165-bd5c-0bbd8151461e"
+          },
+          "usage": [
+            {
+              "promptTokens": 9108,
+              "completionTokens": 3716,
+              "totalTokens": 12824
+            },
+            {
+              "promptTokens": 12985,
+              "completionTokens": 3727,
+              "totalTokens": 16712
+            },
+            {
+              "promptTokens": 12977,
+              "completionTokens": 3721,
+              "totalTokens": 16698
+            }
+          ],
+          "nodes": null,
+          "algorithms": null
+        },
+        {
+          "task": 4,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 3,
+          "seconds": 28.1024837,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 9108,
+              "completionTokens": 2641,
+              "totalTokens": 11749
+            },
+            {
+              "promptTokens": 11891,
+              "completionTokens": 2636,
+              "totalTokens": 14527
+            },
+            {
+              "promptTokens": 11909,
+              "completionTokens": 2737,
+              "totalTokens": 14646
+            }
+          ],
+          "nodes": 20,
+          "algorithms": 11
+        },
+        {
+          "task": 5,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 15.875846,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 9108,
+              "completionTokens": 2192,
+              "totalTokens": 11300
+            },
+            {
+              "promptTokens": 11465,
+              "completionTokens": 2195,
+              "totalTokens": 13660
+            }
+          ],
+          "nodes": 18,
+          "algorithms": 10
+        },
+        {
+          "task": 6,
+          "success": true,
+          "firstRequestSuccess": false,
+          "rawFirstValid": false,
+          "calls": 2,
+          "seconds": 19.1289471,
+          "error": null,
+          "usage": [
+            {
+              "promptTokens": 9108,
+              "completionTokens": 2799,
+              "totalTokens": 11907
+            },
+            {
+              "promptTokens": 12049,
+              "completionTokens": 2761,
+              "totalTokens": 14810
+            }
+          ],
+          "nodes": 21,
+          "algorithms": 15
+        }
+      ],
+      "evidence": "artifacts/acceptance/plan-repair-20261019/cpp/round-2/summary.json"
+    }
+  ],
+  "regression": {
+    "tests": 343,
+    "failed": 0,
+    "skipped": 0
+  },
+  "desktop": {
+    "startupGroups": 5,
+    "p4": 6,
+    "p7": 12,
+    "web": 10,
+    "p8": 26,
+    "failed": 0
+  },
+  "allRounds": {
+    "rounds": [
+      {
+        "scenario": "algorithms",
+        "round": 1,
+        "attempted": 3,
+        "passed": 1,
+        "firstPassed": 0,
+        "rawPassed": 0,
+        "calls": 9,
+        "passedThreshold": false,
+        "requestDistributionAllTasks": {
+          "3": 3
+        }
+      },
+      {
+        "scenario": "algorithms",
+        "round": 2,
+        "attempted": 3,
+        "passed": 0,
+        "firstPassed": 0,
+        "rawPassed": 0,
+        "calls": 9,
+        "passedThreshold": false,
+        "requestDistributionAllTasks": {
+          "3": 3
+        }
+      },
+      {
+        "scenario": "algorithms",
+        "round": 3,
+        "attempted": 5,
+        "passed": 5,
+        "firstPassed": 0,
+        "rawPassed": 0,
+        "calls": 11,
+        "passedThreshold": true,
+        "requestDistributionAllTasks": {
+          "2": 4,
+          "3": 1
+        }
+      },
+      {
+        "scenario": "cpp",
+        "round": 1,
+        "attempted": 1,
+        "passed": 0,
+        "firstPassed": 0,
+        "rawPassed": 0,
+        "calls": 3,
+        "passedThreshold": false,
+        "requestDistributionAllTasks": {
+          "3": 1
+        }
+      },
+      {
+        "scenario": "cpp",
+        "round": 2,
+        "attempted": 6,
+        "passed": 5,
+        "firstPassed": 1,
+        "rawPassed": 1,
+        "calls": 13,
+        "passedThreshold": true,
+        "requestDistributionAllTasks": {
+          "1": 1,
+          "2": 3,
+          "3": 2
+        }
+      },
+      {
+        "scenario": "linear",
+        "round": 1,
+        "attempted": 5,
+        "passed": 5,
+        "firstPassed": 2,
+        "rawPassed": 2,
+        "calls": 8,
+        "passedThreshold": true,
+        "requestDistributionAllTasks": {
+          "2": 3,
+          "1": 2
+        }
+      }
+    ],
+    "recordedReplies": 57,
+    "recordedTokens": {
+      "promptTokens": 1138767,
+      "completionTokens": 164061,
+      "totalTokens": 1302828
+    },
+    "inFlightInterruptedUsageUnknown": true
+  },
+  "manualPending": true,
+  "generatedCodeExecuted": false,
+  "remotePushed": false
+}

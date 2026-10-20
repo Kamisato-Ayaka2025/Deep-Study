@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><ApplicationIcon>Assets/deep-study.ico</ApplicationIcon></PropertyGroup>
+  <ItemGroup><Resource Include="Assets/deep-study.png" /><Resource Include="Assets/deep-study.ico" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" /></ItemGroup>
+  <ItemGroup><Content Include="../StudyHarness.ReaderAssets/**/*" Exclude="../StudyHarness.ReaderAssets/README.md" Link="ReaderAssets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../StudyHarness.Application/StudyHarness.Application.csproj" />
+    <ProjectReference Include="../StudyHarness.Contracts/StudyHarness.Contracts.csproj" />
+    <ProjectReference Include="../StudyHarness.Infrastructure/StudyHarness.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

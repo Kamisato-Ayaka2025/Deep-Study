@@ -1,0 +1,42 @@
+{
+  "courseData": {
+    "current": "artifacts/releases/1.3.1-rc.1/manual-data",
+    "earlier": "artifacts/releases/1.3.0-rc.1/manual-data",
+    "userDatabasesModified": false,
+    "realDataLaunchersRunByAgent": false,
+    "moved": false,
+    "launchersCopiedUnchanged": true
+  },
+  "functionalDiff": "VERSION and two static MainWindow.xaml labels only",
+  "generatedCodeExecuted": false,
+  "signoff": "docs/acceptance/P11-signoff.md",
+  "retainedFullGate": "artifacts/acceptance/P11/20261020-182452-e56084",
+  "commit": "ff97a86f04ffa26b92c75a9ffcad30447c69ac91",
+  "validation": {
+    "tests": 452,
+    "skipped": 0,
+    "packageFilesMatched": 131,
+    "build": "passed, zero warnings/errors",
+    "hybridDesktopWithRestart": 27,
+    "performanceDesktop": 39,
+    "startupGroups": 5,
+    "lockedRestore": "passed",
+    "failed": 0
+  },
+  "functionalBaseline": "085f0c35ebb0e94c27eb586d3c9bd54b0332a944",
+  "version": "1.3.1",
+  "tag": "v1.3.1",
+  "newOcrCalls": 0,
+  "remotePublished": false,
+  "acceptanceScope": "P11 and latest REQ-054 hybrid knowledge/binding recovery",
+  "fullGateRerun": false,
+  "paidApiCalls": 0,
+  "archive": "artifacts/releases/1.3.1",
+  "packageSha256": "E95EA9ED6BF14202A3EF0AC7382C287A5775473FB85A45652EF6FAEA47DAB190",
+  "productVersion": "1.3.1+ff97a86f04ffa26b92c75a9ffcad30447c69ac91",
+  "manualAccepted": true,
+  "evidenceRoot": "artifacts/acceptance/P11/release-1.3.1",
+  "p8Acceptance": "unchanged",
+  "candidateBaseline": "1.3.1-rc.2",
+  "packageFiles": 131
+}

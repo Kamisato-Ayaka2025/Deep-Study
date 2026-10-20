@@ -1,0 +1,46 @@
+{
+  "manualAccepted": false,
+  "userDatabasesWritten": false,
+  "gate": "artifacts/acceptance/P11/20261020-182452-e56084",
+  "package": {
+    "filesVerified": 132,
+    "archive": "artifacts/releases/1.3.1-rc.2",
+    "startupPassed": true,
+    "sha256": "3583C59132DD7B785C24027C5C6388A96F09BAF20D49EFA3EF0677261BD9BCF1"
+  },
+  "requirement": "REQ-054",
+  "schemaVersion": 1,
+  "generatedCodeExecuted": false,
+  "status": "self_checked",
+  "desktop": {
+    "specialized": 341,
+    "basicGroups": 9,
+    "hybridWithRestart": 27
+  },
+  "stages": 19,
+  "stableRelease": "1.3.0",
+  "tests": {
+    "total": 452,
+    "passed": 452,
+    "skipped": 0,
+    "failed": 0
+  },
+  "realSamples": {
+    "finalN2Validation": "cached reply replay; zero new API calls",
+    "quality": "agent-static reviewed; manual pending",
+    "newOcr": 0,
+    "newFetches": 0,
+    "evidence": "artifacts/fixes/hybrid-20261020",
+    "totalTokens": 20299,
+    "calls": 2
+  },
+  "featureCommit": "085f0c35ebb0e94c27eb586d3c9bd54b0332a944",
+  "limitations": [
+    "Conservative stable-topic allowlist",
+    "Lexical relevance does not establish truth or current rules",
+    "Stable sample quiz reuses worked-example values",
+    "Original source/hash and prior failed/manualPending reports preserved"
+  ],
+  "version": "1.3.1-rc.2",
+  "turn": "TURN-20261020-016"
+}

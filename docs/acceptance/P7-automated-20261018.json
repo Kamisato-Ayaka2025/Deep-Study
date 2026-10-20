@@ -1,0 +1,159 @@
+{
+  "version": "1.0.0-rc.1",
+  "commit": "14f1990e58214d2ab609bd7c1291c47e98ef8a02",
+  "tag": "v1.0.0-rc.1",
+  "productVersion": "1.0.0-rc.1+14f1990e58214d2ab609bd7c1291c47e98ef8a02",
+  "sourceHash": "B8015B923787B3FBFFE0A51ADC7FC126B06A8D84809702A81BCB2D4B834016CC",
+  "packageSha256": "9B27D9122C2F6DB4453E9612C627D163C6792AFAF6AB8317C1BA1272984F57AC",
+  "gate": "artifacts/acceptance/P7/20261018-113350-a415b5",
+  "retainedArchive": "artifacts/releases/1.0.0-rc.1",
+  "retention": "Keep archive and earlier failures; no public upload",
+  "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1 -Phase P7 -RealApi",
+  "steps": 16,
+  "passedSteps": 16,
+  "tests": {
+    "passed": 231,
+    "skipped": 0,
+    "failed": 0,
+    "executed": 231
+  },
+  "desktop": {
+    "total": 61,
+    "groups": {
+      "ui/ui-summary.json": 9,
+      "p4-ui/p4-ui-summary.json": 6,
+      "p7-ui/p7-ui-summary.json": 12,
+      "p6-ui/p6-ui-summary.json": 25,
+      "p5-ui/p5-ui-summary.json": 9
+    }
+  },
+  "realModel": "deepseek-flash",
+  "cppChecks": 21,
+  "coverage": [
+    {
+      "labs": [
+        "n2"
+      ],
+      "key": "a1",
+      "name": "二分查找（升序数组第一个不小于x的位置，半开区间[l,r)）",
+      "theory": [
+        "n1"
+      ]
+    },
+    {
+      "labs": [
+        "n4"
+      ],
+      "key": "a2",
+      "name": "一维前缀和（p[0]=0，区间[l,r)之和为p[r]-p[l]）",
+      "theory": [
+        "n3"
+      ]
+    }
+  ],
+  "realC": {
+    "success": true,
+    "exported": true,
+    "isFake": false,
+    "model": "deepseek-flash",
+    "job": {
+      "id": "c257d2fa-c8db-4f8a-bca9-30063a62e31f",
+      "subjectId": "58ad28aa-4859-480f-9c95-f49a90fc8fec",
+      "nodeKey": "L1",
+      "status": "ready",
+      "attempts": 1,
+      "failure": null,
+      "usage": {
+        "promptTokens": 2710,
+        "completionTokens": 2543,
+        "totalTokens": 5253
+      },
+      "startedAt": "2026-10-18T11:35:13.6390279+08:00"
+    },
+    "sources": 2,
+    "tests": 11,
+    "codeExecuted": false,
+    "completed": false,
+    "error": null,
+    "manualPending": true
+  },
+  "realTutoring": {
+    "success": true,
+    "model": "deepseek-flash",
+    "usage": {
+      "promptTokens": 287,
+      "completionTokens": 94,
+      "totalTokens": 381
+    },
+    "syntheticOnly": true,
+    "messages": 2,
+    "completed": false,
+    "codeExecuted": false,
+    "filesModified": false,
+    "error": null,
+    "manualPending": true
+  },
+  "cppMaterials": [
+    {
+      "key": "n2",
+      "algorithmKeys": [
+        "a1"
+      ],
+      "hash": "0710751A30583A967BD777E975B8D28E5463F33F635215D657AF14F714884D8C",
+      "cases": 10,
+      "job": {
+        "id": "7dc1dad2-ab93-4ff7-8857-162d2e01d50b",
+        "subjectId": "9cc9d1e4-2cd9-4bca-a6e6-87627c16a8b3",
+        "nodeKey": "n2",
+        "status": "ready",
+        "attempts": 1,
+        "failure": null,
+        "usage": {
+          "promptTokens": 1628,
+          "completionTokens": 1852,
+          "totalTokens": 3480
+        },
+        "startedAt": "2026-10-18T11:35:45.8368252+08:00"
+      }
+    },
+    {
+      "key": "n4",
+      "algorithmKeys": [
+        "a2"
+      ],
+      "hash": "185456E9D36A22A0F42A1CC81CAA8FA959AC66615803034B50215A25724C19A8",
+      "cases": 13,
+      "job": {
+        "id": "f3e74a61-92e8-4e2e-b7b6-6a18d6d5e123",
+        "subjectId": "9cc9d1e4-2cd9-4bca-a6e6-87627c16a8b3",
+        "nodeKey": "n4",
+        "status": "ready",
+        "attempts": 1,
+        "failure": null,
+        "usage": {
+          "promptTokens": 1556,
+          "completionTokens": 2418,
+          "totalTokens": 3974
+        },
+        "startedAt": "2026-10-18T11:35:53.1151625+08:00"
+      }
+    }
+  ],
+  "codeExecuted": false,
+  "syntheticProgressOnly": true,
+  "manualPending": true,
+  "cleanWindowsInstallTested": false,
+  "psec": "retired-not-passed; historical 246 executed / 242 passed / 4 failed retained",
+  "inspectedScreenshots": [
+    "p7-ui/cpp-plan.png",
+    "p7-ui/cpp-materials.png",
+    "p6-ui/tutor-markdown.png"
+  ],
+  "cppProviderCalls": 5,
+  "providerCallMeaning": "Logical provider calls; planning may use multiple HTTP tool rounds, usage is cumulative.",
+  "cppUsage": {
+    "totalTokens": 24250.0,
+    "promptTokens": 15123.0,
+    "completionTokens": 9127.0
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "turn": "TURN-20261017-014",
+  "scope": "ADR-009 materials-only",
+  "tests": {
+    "executed": 193,
+    "passed": 193,
+    "failed": 0,
+    "skipped": 0
+  },
+  "ui": {
+    "general": 9,
+    "theory": 6,
+    "lab": 9
+  },
+  "gate": "12/12",
+  "codeExecuted": false,
+  "manualPending": true,
+  "treeHash": "C6F8C47028A0A1DC7E2632CA944277F9A6183CC3B6A831FC8634A441DF20659E",
+  "realModel": "deepseek-flash",
+  "realCases": 10,
+  "realUsage": {
+    "promptTokens": 1587,
+    "completionTokens": 1302,
+    "totalTokens": 2889
+  },
+  "totalRoundTokens": 8280,
+  "packageSHA256": "94551C1664FD2136DE668075EC9A10819B6C8F4FDB82C7154EA5E8CE9D64AAF4",
+  "evidence": "artifacts/acceptance/P5/20261017-195431-ab5af3"
+}

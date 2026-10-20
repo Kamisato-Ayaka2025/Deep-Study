@@ -1,0 +1,38 @@
+{
+  "version": "1.2.0",
+  "commit": "47e4cd8d85e4ade7198d057dc0d605ad026c8a18",
+  "tag": "v1.2.0",
+  "productVersion": "1.2.0+47e4cd8d85e4ade7198d057dc0d605ad026c8a18",
+  "packageSha256": "B1E2BDFDDE27A56B04F95FA351FD46EB62486B8EB4DFBBD936C4768AAD7C4ED9",
+  "packageEntries": 131,
+  "retainedArchive": "artifacts/releases/1.2.0",
+  "functionalBaseline": "fba9e15e0faa480fc071f8014093001f226d5160",
+  "functionalDiff": "VERSION and two static MainWindow.xaml labels only",
+  "signoff": "docs/acceptance/P9-signoff.md",
+  "manualAccepted": true,
+  "acceptanceScope": "P9 and WP-P9-001..006 including feedback fixes",
+  "p8Acceptance": "unchanged",
+  "paidApiCalls": 0,
+  "newOcrCalls": 0,
+  "codeExecuted": false,
+  "remotePublished": false,
+  "evidenceRoot": "artifacts/acceptance/P9/release-1.2.0",
+  "fullPaidGateRerun": false,
+  "previousEvidenceScope": "Original rc.1 full gate and subsequent feedback checks retain their own commits; no stale module hash substitution",
+  "databaseVersions": {
+    "planning": 2,
+    "learning": 7,
+    "collections": 2,
+    "knowledge": 2
+  },
+  "validation": {
+    "startupGroups": 5,
+    "lockedRestore": "passed",
+    "failed": 0,
+    "tests": 387,
+    "zipFilesVerified": 131,
+    "p9DesktopChecks": 50,
+    "build": "passed, 0 warnings/errors",
+    "skipped": 0
+  }
+}

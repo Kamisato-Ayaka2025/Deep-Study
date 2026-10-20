@@ -1,0 +1,196 @@
+{
+  "commit": "cf0d2813974e087713393e7b3dbac6fa6cd0dc27",
+  "limitations": "Three plans and first representative lessons reviewed; no guarantee for all future model output. Mainland reachability and H-P9-1..4 await user signoff. Binary informational revision is pre-commit metadata, not actual source commit.",
+  "reviewKind": "agent-static",
+  "sourceHash": "4BCB831B0AEEE9B2AD2782107674B8AF7E23BFCFF7D3EC9C7671C1D3B32C315A",
+  "turnKnownReceipts": 18,
+  "informationalVersionRevision": "c3d1574486bf5b2cfcc468721aaf1eb85ace3887",
+  "reviewedQuizCount": 19,
+  "newOcrCalls": 0,
+  "realScenarios": [
+    {
+      "modelCalls": 2,
+      "scenario": "algorithms",
+      "modules": [
+        {
+          "name": "StudyHarness.Application.dll",
+          "sha256": "7823180592F786BCAA9E3B14CBD45F9EBB3F2CE1D31F6B98F8C68D240A7740A2"
+        },
+        {
+          "name": "StudyHarness.Infrastructure.dll",
+          "sha256": "1D6CEA217B8624DD530B1EF932FC3AAFEC89B08E585A7BD1262B196D04B244C4"
+        },
+        {
+          "name": "StudyHarness.Contracts.dll",
+          "sha256": "4875C523F050788DFFFD7537264A939318616E5A878A4A313F16EA8973D90315"
+        }
+      ],
+      "timings": [
+        {
+          "phase": "acquire",
+          "seconds": 0,
+          "reused": true
+        },
+        {
+          "phase": "plan",
+          "seconds": 8.5848469
+        },
+        {
+          "phase": "lesson",
+          "seconds": 55.7387461
+        }
+      ],
+      "sha256": "908B500EDFAD61876C40B24F93466BFDF4E152FE4247D0A1BA06128421AA6FEB",
+      "qualityReviewSha256": "430A93DC986481E78DD02451DD1B06CD7A753AE33BD3A43335CB2D174BEBFA16",
+      "tokens": 48326.0,
+      "evidence": "artifacts/acceptance/P9/real-verified/algorithms/p9-real-summary.json",
+      "checks": 120,
+      "qualityReview": "artifacts/acceptance/P9/real-verified/algorithms/quality-review.json"
+    },
+    {
+      "modelCalls": 2,
+      "scenario": "linear",
+      "modules": [
+        {
+          "name": "StudyHarness.Application.dll",
+          "sha256": "7823180592F786BCAA9E3B14CBD45F9EBB3F2CE1D31F6B98F8C68D240A7740A2"
+        },
+        {
+          "name": "StudyHarness.Infrastructure.dll",
+          "sha256": "1D6CEA217B8624DD530B1EF932FC3AAFEC89B08E585A7BD1262B196D04B244C4"
+        },
+        {
+          "name": "StudyHarness.Contracts.dll",
+          "sha256": "4875C523F050788DFFFD7537264A939318616E5A878A4A313F16EA8973D90315"
+        }
+      ],
+      "timings": [
+        {
+          "phase": "acquire",
+          "seconds": 0,
+          "reused": true
+        },
+        {
+          "phase": "plan",
+          "seconds": 14.161158
+        },
+        {
+          "phase": "lesson",
+          "seconds": 73.7166229
+        }
+      ],
+      "sha256": "7CEAE290E8B1FC37016EB72F66BF61572164F844C7AD296779FD190E83703318",
+      "qualityReviewSha256": "2BE2A5F78EEBE9F4452AC0B424F4006EBD82F793EE44F0BF8BC275363D5A0814",
+      "tokens": 52473.0,
+      "evidence": "artifacts/acceptance/P9/real-verified/linear/p9-real-summary.json",
+      "checks": 108,
+      "qualityReview": "artifacts/acceptance/P9/real-verified/linear/quality-review.json"
+    },
+    {
+      "modelCalls": 2,
+      "scenario": "cpp",
+      "modules": [
+        {
+          "name": "StudyHarness.Application.dll",
+          "sha256": "7823180592F786BCAA9E3B14CBD45F9EBB3F2CE1D31F6B98F8C68D240A7740A2"
+        },
+        {
+          "name": "StudyHarness.Infrastructure.dll",
+          "sha256": "1D6CEA217B8624DD530B1EF932FC3AAFEC89B08E585A7BD1262B196D04B244C4"
+        },
+        {
+          "name": "StudyHarness.Contracts.dll",
+          "sha256": "4875C523F050788DFFFD7537264A939318616E5A878A4A313F16EA8973D90315"
+        }
+      ],
+      "timings": [
+        {
+          "phase": "acquire",
+          "seconds": 0,
+          "reused": true
+        },
+        {
+          "phase": "plan",
+          "seconds": 12.0531366
+        },
+        {
+          "phase": "lesson",
+          "seconds": 58.8712452
+        }
+      ],
+      "sha256": "47B6822B96888EF61F3490412F6E538A08BED20EC6FBC4CB016290BF426CDD8A",
+      "qualityReviewSha256": "AEFF75B4B82F473B160982DD17AA295512D1C0A5D0F747228A2FAC93DF4906C2",
+      "tokens": 31959.0,
+      "evidence": "artifacts/acceptance/P9/real-verified/cpp/p9-real-summary.json",
+      "checks": 44,
+      "qualityReview": "artifacts/acceptance/P9/real-verified/cpp/quality-review.json"
+    }
+  ],
+  "status": "self_checked",
+  "finalRealTokens": 132758,
+  "newProductFetchCalls": 0,
+  "buildMetadataEvidence": "artifacts/acceptance/P9/20261020-130348-e85cc5/build-metadata.json",
+  "tag": "v1.2.0-rc.1",
+  "historicalFailedGate": "artifacts/acceptance/P9/20261020-130039-5f0d6e",
+  "passedSteps": 20,
+  "steps": 20,
+  "tests": {
+    "executed": 381,
+    "passed": 381,
+    "failed": 0,
+    "skipped": 0
+  },
+  "unknownUsage": "real-original/algorithms possible in-flight theory call without receipt; historical unknowns retained",
+  "desktop": [
+    {
+      "checks": 9,
+      "failed": 0,
+      "evidence": "artifacts/acceptance/P9/20261020-130348-e85cc5/ui/ui-summary.json"
+    },
+    {
+      "checks": 6,
+      "failed": 0,
+      "evidence": "artifacts/acceptance/P9/20261020-130348-e85cc5/p4-ui/p4-ui-summary.json"
+    },
+    {
+      "checks": 9,
+      "failed": 0,
+      "evidence": "artifacts/acceptance/P9/20261020-130348-e85cc5/p5-ui/p5-ui-summary.json"
+    },
+    {
+      "checks": 25,
+      "failed": 0,
+      "evidence": "artifacts/acceptance/P9/20261020-130348-e85cc5/p6-ui/p6-ui-summary.json"
+    },
+    {
+      "checks": 12,
+      "failed": 0,
+      "evidence": "artifacts/acceptance/P9/20261020-130348-e85cc5/p7-ui/p7-ui-summary.json"
+    },
+    {
+      "checks": 10,
+      "failed": 0,
+      "evidence": "artifacts/acceptance/P9/20261020-130348-e85cc5/web-ui/web-ui.json"
+    },
+    {
+      "checks": 30,
+      "failed": 0,
+      "evidence": "artifacts/acceptance/P9/20261020-130348-e85cc5/p8-ui/p8-ui-summary.json"
+    },
+    {
+      "checks": 20,
+      "failed": 0,
+      "evidence": "artifacts/acceptance/P9/20261020-130348-e85cc5/p9-ui/p9-ui-summary.json"
+    }
+  ],
+  "generatedCodeExecuted": false,
+  "manualAcceptance": false,
+  "retainedArchive": "artifacts/releases/1.2.0-rc.1",
+  "turnKnownTokens": 434015,
+  "manualPending": true,
+  "version": "1.2.0-rc.1",
+  "gate": "artifacts/acceptance/P9/20261020-130348-e85cc5",
+  "p9RealChecks": 272.0,
+  "desktopChecks": 121.0,
+  "packageSha256": "4AE787574E32F18F6CF91DA889184F2212FB48A3BCEF6A4A8D0DF127757B95D8"
+}

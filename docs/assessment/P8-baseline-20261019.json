@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "observedDate": "2026-10-19",
+  "baselineCommit": "9072c6b6d2baa7549b3ce10cc5c3729fa18dfefa",
+  "productionGate": false,
+  "capabilities": {
+    "observedAt": "2026-10-19T14:11:03.364552+08:00",
+    "model": "deepseek-flash",
+    "metadata": {
+      "id": "deepseek-flash",
+      "object": "model",
+      "owned_by": "deepseek",
+      "name": "DeepSeek-V4.1-Flash",
+      "context_window": 1048576,
+      "max_output_tokens": 393216,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "effort": {
+        "supported_levels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "default_level": "high"
+      },
+      "api_capabilities": {
+        "anthropic_messages": {
+          "system_prompt_update": "in-history"
+        }
+      }
+    }
+  },
+  "text": {
+    "schemaVersion": 1,
+    "promptVersion": "p8-probe-v1",
+    "synthetic": true,
+    "productionGate": false,
+    "samples": [
+      {
+        "id": "text-8192-cold",
+        "model": "deepseek-flash",
+        "inputChars": 8310,
+        "imageBytes": 0,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 581.3978,
+        "elapsedMs": 12085.3844,
+        "outputCharacters": 3645,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 5221,
+          "completion_tokens": 2219,
+          "total_tokens": 7440,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 5221
+        }
+      },
+      {
+        "id": "text-8192-repeat",
+        "model": "deepseek-flash",
+        "inputChars": 8310,
+        "imageBytes": 0,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 495.111,
+        "elapsedMs": 11382.439,
+        "outputCharacters": 3439,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 5221,
+          "completion_tokens": 2039,
+          "total_tokens": 7260,
+          "prompt_tokens_details": {
+            "cached_tokens": 4992
+          },
+          "prompt_cache_hit_tokens": 4992,
+          "prompt_cache_miss_tokens": 229
+        }
+      },
+      {
+        "id": "text-32768-cold",
+        "model": "deepseek-flash",
+        "inputChars": 32886,
+        "imageBytes": 0,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 908.4454,
+        "elapsedMs": 13567.8728,
+        "outputCharacters": 4535,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 20501,
+          "completion_tokens": 2593,
+          "total_tokens": 23094,
+          "prompt_tokens_details": {
+            "cached_tokens": 5120
+          },
+          "prompt_cache_hit_tokens": 5120,
+          "prompt_cache_miss_tokens": 15381
+        }
+      },
+      {
+        "id": "text-32768-repeat",
+        "model": "deepseek-flash",
+        "inputChars": 32886,
+        "imageBytes": 0,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 527.4728,
+        "elapsedMs": 14361.5414,
+        "outputCharacters": 5071,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 20501,
+          "completion_tokens": 2859,
+          "total_tokens": 23360,
+          "prompt_tokens_details": {
+            "cached_tokens": 20352
+          },
+          "prompt_cache_hit_tokens": 20352,
+          "prompt_cache_miss_tokens": 149
+        }
+      },
+      {
+        "id": "text-131072-cold",
+        "model": "deepseek-flash",
+        "inputChars": 131190,
+        "imageBytes": 0,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 1607.4735,
+        "elapsedMs": 12492.968,
+        "outputCharacters": 3228,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 81687,
+          "completion_tokens": 1975,
+          "total_tokens": 83662,
+          "prompt_tokens_details": {
+            "cached_tokens": 20480
+          },
+          "prompt_cache_hit_tokens": 20480,
+          "prompt_cache_miss_tokens": 61207
+        }
+      },
+      {
+        "id": "text-131072-repeat",
+        "model": "deepseek-flash",
+        "inputChars": 131190,
+        "imageBytes": 0,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 734.8572,
+        "elapsedMs": 12735.0572,
+        "outputCharacters": 4322,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 81687,
+          "completion_tokens": 2421,
+          "total_tokens": 84108,
+          "prompt_tokens_details": {
+            "cached_tokens": 81536
+          },
+          "prompt_cache_hit_tokens": 81536,
+          "prompt_cache_miss_tokens": 151
+        }
+      }
+    ]
+  },
+  "longOutput": {
+    "schemaVersion": 1,
+    "promptVersion": "p8-probe-long-v1",
+    "maxOutput": 16384,
+    "synthetic": true,
+    "productionGate": false,
+    "samples": [
+      {
+        "id": "text-32768-long",
+        "model": "deepseek-flash",
+        "inputChars": 32954,
+        "imageBytes": 0,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 1081.1691,
+        "elapsedMs": 39505.0396,
+        "outputCharacters": 13198,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 20546,
+          "completion_tokens": 8180,
+          "total_tokens": 28726,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 20546
+        }
+      },
+      {
+        "id": "text-131072-long",
+        "model": "deepseek-flash",
+        "inputChars": 131258,
+        "imageBytes": 0,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 1316.1788,
+        "elapsedMs": 40014.1995,
+        "outputCharacters": 14378,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 81732,
+          "completion_tokens": 8718,
+          "total_tokens": 90450,
+          "prompt_tokens_details": {
+            "cached_tokens": 20480
+          },
+          "prompt_cache_hit_tokens": 20480,
+          "prompt_cache_miss_tokens": 61252
+        }
+      }
+    ]
+  },
+  "ocr": {
+    "schemaVersion": 1,
+    "promptVersion": "p8-probe-v1",
+    "synthetic": false,
+    "productionGate": false,
+    "samples": [
+      {
+        "id": "ocr-11",
+        "model": "deepseek-flash",
+        "inputChars": 0,
+        "imageBytes": 1253128,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 4000.1648,
+        "elapsedMs": 7061.727,
+        "outputCharacters": 1367,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 1037,
+          "completion_tokens": 699,
+          "total_tokens": 1736,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 1037
+        }
+      },
+      {
+        "id": "ocr-51",
+        "model": "deepseek-flash",
+        "inputChars": 0,
+        "imageBytes": 1230849,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 1077.2799,
+        "elapsedMs": 4356.3304,
+        "outputCharacters": 1213,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 1037,
+          "completion_tokens": 717,
+          "total_tokens": 1754,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 1037
+        }
+      },
+      {
+        "id": "ocr-101",
+        "model": "deepseek-flash",
+        "inputChars": 0,
+        "imageBytes": 1287101,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 1044.2346,
+        "elapsedMs": 4044.7837,
+        "outputCharacters": 1478,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 1037,
+          "completion_tokens": 725,
+          "total_tokens": 1762,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 1037
+        }
+      },
+      {
+        "id": "ocr-201",
+        "model": "deepseek-flash",
+        "inputChars": 0,
+        "imageBytes": 1106125,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 1013.0653,
+        "elapsedMs": 4092.9039,
+        "outputCharacters": 1276,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 1037,
+          "completion_tokens": 710,
+          "total_tokens": 1747,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 1037
+        }
+      },
+      {
+        "id": "ocr-401",
+        "model": "deepseek-flash",
+        "inputChars": 0,
+        "imageBytes": 931029,
+        "status": "transport_complete_quality_pending",
+        "error": "",
+        "firstContentMs": 1014.3448,
+        "elapsedMs": 3343.4335,
+        "outputCharacters": 931,
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 1037,
+          "completion_tokens": 521,
+          "total_tokens": 1558,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 1037
+        }
+      }
+    ]
+  },
+  "oi": [
+    {
+      "name": "home",
+      "url": "https://oi-wiki.org/",
+      "bytes": 118390,
+      "sha256": "ece36f3b9508211dfdb886ee87669eaa604ec872dafa4f4b06c9fffcee73bf38",
+      "directoryEntries": 463,
+      "elapsedSeconds": 2.375,
+      "status": "retrieved_directory_only",
+      "fullBodyCoverage": false
+    },
+    {
+      "name": "sitemap",
+      "url": "https://oi-wiki.org/sitemap.xml",
+      "bytes": 74316,
+      "sha256": "c19be5a87f0e38a58810507ab5a1cd9ffea911605ab9bc26b5701ec9130e0ae3",
+      "directoryEntries": 465,
+      "elapsedSeconds": 1.75,
+      "status": "retrieved_directory_only",
+      "fullBodyCoverage": false
+    }
+  ]
+}

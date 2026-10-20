@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "instructions",
+    "assessment",
+    "safetyNotes",
+    "sourceFiles",
+    "testFiles",
+    "cases",
+    "sourceKeys",
+    "experimentKind",
+    "classificationReason",
+    "manualChecks"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "enum": [
+        3,
+        4
+      ]
+    },
+    "instructions": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32000
+    },
+    "assessment": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32000
+    },
+    "safetyNotes": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16000
+    },
+    "sourceFiles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "text"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180,
+            "pattern": "^[A-Za-z0-9_./-]+\\.(c|h|cpp)$"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          }
+        }
+      }
+    },
+    "testFiles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "text"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180,
+            "pattern": "^[A-Za-z0-9_./-]+\\.(c|h|cpp|md|json|csv)$"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          }
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "input",
+          "expected"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "input": {
+            "type": "string",
+            "maxLength": 16384
+          },
+          "expected": {
+            "type": "string",
+            "maxLength": 16384
+          }
+        }
+      }
+    },
+    "sourceKeys": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 99,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      }
+    },
+    "experimentKind": {
+      "enum": [
+        "exercise",
+        "project"
+      ]
+    },
+    "classificationReason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "manualChecks": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "input",
+          "expected"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "input": {
+            "type": "string",
+            "maxLength": 16384
+          },
+          "expected": {
+            "type": "string",
+            "maxLength": 16384
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "experimentKind": {
+            "const": "project"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "manualChecks": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "else": {
+        "properties": {
+          "sourceFiles": {
+            "items": {
+              "properties": {
+                "path": {
+                  "pattern": "^[A-Za-z0-9_./-]+\\.(c|h)$"
+                }
+              }
+            }
+          },
+          "testFiles": {
+            "items": {
+              "properties": {
+                "path": {
+                  "pattern": "^[A-Za-z0-9_./-]+\\.(c|h|md|json|csv)$"
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "testFiles": {
+            "items": {
+              "properties": {
+                "path": {
+                  "enum": [
+                    "tests/cases.json",
+                    "test.cpp"
+                  ]
+                }
+              }
+            },
+            "maxItems": 2
+          },
+          "sourceFiles": {
+            "items": {
+              "properties": {
+                "path": {
+                  "const": "solution.cpp"
+                }
+              }
+            },
+            "maxItems": 1
+          },
+          "experimentKind": {
+            "const": "exercise"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 4
+          }
+        }
+      }
+    }
+  ]
+}
