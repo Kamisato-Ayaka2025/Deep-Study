@@ -31,16 +31,21 @@ public sealed class PlanRepairTests : IDisposable
         public Task SaveBudgetAsync(TaskBudgetRecord record, CancellationToken ct = default) => Task.CompletedTask;
         public Task RecordAsync(TaskTiming timing, CancellationToken ct = default) { Rows.Add(timing); return Task.CompletedTask; }
     }
-    private async Task<(PlanningService Service, PlanningReview Review, Provider Provider, Telemetry Telemetry)> Setup()
+    private async Task<(PlanningService Service, PlanningReview Review, Provider Provider, Telemetry Telemetry)> Setup(bool redundantMetadataCase = false)
     {
         var knowledge = new KnowledgeStore(root); var library = Path.Combine(root, "library"); Directory.CreateDirectory(library);
         var selected = await knowledge.SwitchAsync(new(Guid.NewGuid(), 0, HostSelection.FromFolderPicker(library)));
         var path = Path.Combine(root, "source.md"); await File.WriteAllTextAsync(path, "# 集合\n集合相等可证明双向包含。");
         await knowledge.ImportAsync(new(Guid.NewGuid(), 0, HostSelection.FromFilePicker(path)), selected.Value!.Id);
+        if (redundantMetadataCase)
+        {
+            var second=Path.Combine(root,"practice.md"); await File.WriteAllTextAsync(second,"# 练习\n通过双向包含证明集合相等。");
+            await knowledge.ImportAsync(new(Guid.NewGuid(),0,HostSelection.FromFilePicker(second)),selected.Value.Id);
+        }
         var refs = (await knowledge.SearchAsync(selected.Value.Id, "", [])).Fragments.Select(f => f.Reference).ToArray();
         var provider = new Provider(); var telemetry = new Telemetry();
         var service = new PlanningService(new SqlitePlanningStore(root), knowledge, new(new SqliteSettingsStore(root)), new(provider), new PlanParser(), telemetry);
-        var draft = (await service.StartAsync(new(Guid.NewGuid(), 0, new("学习集合", "零基础", "理解集合", 120, "Adaptive", refs)))).Value!;
+        var draft = (await service.StartAsync(new(Guid.NewGuid(), 0, new("学习集合", redundantMetadataCase ? null : "零基础", "理解集合", 120, "Adaptive", refs)))).Value!;
         return (service, (await service.PrepareAsync(draft.Id, 0)).Value!, provider, telemetry);
     }
     [Fact]
@@ -50,16 +55,16 @@ public sealed class PlanRepairTests : IDisposable
         var invalid = Json(Candidate with { WeeklyMinutes = 480 });
         provider.Reply = _ => Result<ProviderReply>.Success(new(invalid, true));
         Assert.False((await service.ProposeAsync(review, true)).Ok);
-        Assert.True(review.CanRetry); Assert.Equal(3, provider.Requests.Count);
+        Assert.True(review.CanRetry); Assert.Equal(2, provider.Requests.Count);
         Assert.False((await service.ProposeAsync(review, false)).Ok);
-        Assert.Equal(3, provider.Requests.Count);
+        Assert.Equal(2, provider.Requests.Count);
         Assert.False((await service.ProposeAsync(review, true)).Ok);
-        Assert.Equal(6, provider.Requests.Count);
-        Assert.Equal(invalid, provider.Requests[3].PlanRepair!.Candidate);
-        Assert.Contains("weeklyMinutes", provider.Requests[3].PlanRepair!.Instructions);
+        Assert.Equal(3, provider.Requests.Count);
+        Assert.Equal(invalid, provider.Requests[2].PlanRepair!.Candidate);
+        Assert.Contains("weeklyMinutes", provider.Requests[2].PlanRepair!.Instructions);
         provider.Reply = _ => Result<ProviderReply>.Success(new(Json(Candidate), true));
         Assert.True((await service.ProposeAsync(review, true)).Ok);
-        Assert.Equal(7, provider.Requests.Count); Assert.False(review.CanRetry);
+        Assert.Equal(4, provider.Requests.Count); Assert.False(review.CanRetry);
     }
     [Fact]
     public async Task ExplicitRetry_ProviderInvalidWithoutCandidate_SendsOnlyHostErrorFeedback()
@@ -132,10 +137,53 @@ public sealed class PlanRepairTests : IDisposable
         var candidate = Candidate with { SourceKeys = ["s2"] };
         var result = PlanRules.Validate(Guid.NewGuid(), new("学习集合", "零基础", "理解集合", 120, "Adaptive", []), candidate, sources, null);
         Assert.False(result.Ok);
-        Assert.Contains("PVAL021 nodes[1].lab.sourceKeys：s1", result.Error!.Message);
+        Assert.Contains("PVAL021", result.Error!.Message);
+        Assert.Contains("nodes[1].lab.sourceKeys：s1", result.Error.Message);
         Assert.Contains("顶层sourceKeys", result.Error.Message);
         Assert.True(PlanRules.Validate(Guid.NewGuid(), new("学习集合", "零基础", "理解集合", 120, "Adaptive", []),
             candidate with { SourceKeys = ["s1", "s2"] }, sources, null).Ok);
+    }
+    [Fact]
+    public async Task RedundantSourceAndDefaultMetadata_IsNormalizedInOneDispatch_ThenConfirmsAndRestores()
+    {
+        var (service,review,provider,_)=await Setup(true);
+        var candidate=Candidate with { Defaults=[new("background","入门基础的另一种表述","用户未填写")],
+            Nodes=[Candidate.Nodes[0],Candidate.Nodes[1] with { Lab=Candidate.Nodes[1].Lab! with { SourceKeys=["s2"] } }] };
+        provider.Reply=_=>Result<ProviderReply>.Success(new(Json(candidate),true));
+        var result=await service.ProposeAsync(review,true);
+        Assert.True(result.Ok,result.Error?.Message); Assert.Single(provider.Requests);
+        var draft=result.Value!; var plan=draft.Plan!;
+        Assert.Equal(["s1","s2"],plan.Candidate.SourceKeys);
+        Assert.Equal("零基础",Assert.Single(plan.Candidate.Defaults).Value);
+        Assert.Equal(JsonSerializer.Serialize(candidate.Nodes,Wire.Options),JsonSerializer.Serialize(plan.Candidate.Nodes,Wire.Options));
+        Assert.True((await service.ConfirmAsync(new(Guid.NewGuid(),draft.Revision,new(draft.Id,plan.Hash,true)))).Ok);
+        var restored=(await new SqlitePlanningStore(root).GetAsync(draft.Id))!;
+        Assert.True(restored.Confirmed); Assert.Equal(plan.Hash,restored.Plan!.Hash);
+    }
+    [Fact]
+    public void Normalization_PreservesUserFieldsUnknownSourcesAndLegacyPlans()
+    {
+        var input=new PlanningInput("学习集合","已填基础","已填目标",120,"Adaptive",[]);
+        var source=new PlanSource("s1",new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"hash",new("source",null,"title","block")),false);
+        var candidate=Candidate with { Defaults=[new("background","另一种文字","默认")],
+            Nodes=[Candidate.Nodes[0],Candidate.Nodes[1] with {Lab=Candidate.Nodes[1].Lab! with { SourceKeys=["s99"] }}] };
+        var normalized=PlanCandidateNormalization.Apply(candidate,input,[source]);
+        Assert.Equal(candidate.Defaults,normalized.Defaults); Assert.Equal(candidate.Background,normalized.Background);
+        Assert.DoesNotContain("s99",normalized.SourceKeys); Assert.Equal(["s99"],normalized.Nodes[1].Lab!.SourceKeys);
+        Assert.False(PlanRules.Validate(Guid.NewGuid(),input,normalized,[source],null).Ok);
+        var legacy=candidate with {SchemaVersion=1}; Assert.Same(legacy,PlanCandidateNormalization.Apply(legacy,input,[source]));
+    }
+    [Fact]
+    public void AllLabSourceErrors_AreReportedTogether_WithoutInventingSources()
+    {
+        var reference=new SourceRef(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"hash",new("source",null,"title","block"));
+        var candidate=Candidate with { Nodes=[Candidate.Nodes[0],Candidate.Nodes[1] with {Lab=Candidate.Nodes[1].Lab! with {SourceKeys=["s98"]}},
+            Candidate.Nodes[1] with {Key="n3",Lab=Candidate.Nodes[1].Lab! with {SourceKeys=["s99"]}}] };
+        var input=new PlanningInput("学习集合","零基础","理解集合",120,"Adaptive",[]);
+        var normalized=PlanCandidateNormalization.Apply(candidate,input,[new("s1",reference,false)]);
+        var result=PlanRules.Validate(Guid.NewGuid(),input,normalized,[new("s1",reference,false)],null);
+        Assert.False(result.Ok); Assert.Contains("共2项",result.Error!.Message);
+        Assert.Contains("nodes[1].lab.sourceKeys：s98",result.Error.Message); Assert.Contains("nodes[2].lab.sourceKeys：s99",result.Error.Message);
     }
     [Fact]
     public async Task FirstAttemptModeAndDenial_DoNotRepair()

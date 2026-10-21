@@ -41,7 +41,9 @@ public static class PlanRules
         {
             if (!adaptive || collections.Count > 10 || collections.Select(c => c.Manifest.CollectionId).Distinct().Count() != collections.Count ||
                 !AdaptivePlanRules.CoversDirectory(plan, collections.SelectMany((c, i) => c.Manifest.Entries.Select(e => AdaptivePlanRules.DirectoryKey(i, e.Key)))))
-                return Bad("PVAL003：计划未完整交代冻结目录的覆盖或排除范围。coverage须逐项覆盖输入目录；范围语法例如d1/url-1..100，不能跳过范围之间的条目。");
+                return Bad("PVAL003：计划未完整交代冻结目录的覆盖或排除范围。" +
+                    AdaptivePlanRules.DirectoryDifference(plan, collections.SelectMany((c, i) => c.Manifest.Entries.Select(e => AdaptivePlanRules.DirectoryKey(i, e.Key)))) +
+                    "每个缺失键须按原文明确included/excluded/unavailable，不得猜补状态。修复已有条目而非追加冲突范围；保留所有课程与已有绑定。");
             foreach (var (c, i) in collections.Select((c, i) => (c, i)))
                 foreach (var entry in c.Manifest.Entries)
                     if (entry.State is not ("textReady" or "ocrReady") && !entry.QualityFlags.Contains("fetchOnDemand") && plan.Coverage!.Any(e => e.EntryKey == AdaptivePlanRules.DirectoryKey(i, entry.Key) && e.State == "included"))
@@ -116,13 +118,19 @@ public static class PlanRules
         }
         else if (plan.Algorithms is { Count: > 0 } || plan.Nodes.Any(n => n.AlgorithmKeys is { Count: > 0 }))
             return Bad("PVAL019：算法映射仅适用于CppAlgorithms计划。");
+        var sourceProblems = plan.Nodes.Select((node, index) => (node, index))
+            .Where(p => p.node.Lab is not null)
+            .Select(p => (p.index, Missing: p.node.Lab!.SourceKeys.Where(k => !keys.Contains(k) || !plan.SourceKeys.Contains(k)).Distinct().ToArray()))
+            .Where(p => p.Missing.Length > 0).ToArray();
+        if (sourceProblems.Length > 0)
+            return Bad("PVAL021：练习来源问题共" + sourceProblems.Length + "项：" + string.Join("；", sourceProblems.Take(40).Select(p =>
+                $"nodes[{p.index}].lab.sourceKeys：{string.Join(",", p.Missing.Take(12).Select(k => System.Text.RegularExpressions.Regex.IsMatch(k, @"^s[1-9][0-9]?$") ? k : "<无效来源键>"))}")) +
+                "。必须引用本次实际提供且列入顶层sourceKeys的来源；不得编造来源。一次修正所有列出的练习。");
         foreach (var node in plan.Nodes)
         {
             if (node.Type == "theory" && node.Lab is not null || node.Type == "lab" && node.Lab is null)
                 return Bad("PVAL020：实验安排与课程类型不匹配。");
             if (node.Lab is not { } lab) continue;
-            if (lab.SourceKeys.Any(k => keys.Contains(k) && !plan.SourceKeys.Contains(k)))
-                return Bad($"PVAL021 nodes[{plan.Nodes.ToList().IndexOf(node)}].lab.sourceKeys：{string.Join(",", lab.SourceKeys.Where(k => keys.Contains(k) && !plan.SourceKeys.Contains(k)))} 已提供但未列入顶层sourceKeys；实践引用必须是顶层sourceKeys的子集。若确实支撑本题，将实际使用的这些来源加入顶层sourceKeys；不得编造来源或仅改rationale。");
             if (lab.Mode is not ("independent" or "continuous") ||
                 (adaptive ? !plan.Strategy!.MaterialCapabilities.Contains(lab.Toolchain) : plan.Scope == "CppAlgorithms" ? lab.Toolchain != "portable-cpp" : lab.Toolchain is not ("portable-c" or "msvc" or "mingw")) ||
                 lab.SourceKeys.Count == 0 || lab.SourceKeys.Any(k => !keys.Contains(k) || !plan.SourceKeys.Contains(k)) ||

@@ -21,6 +21,12 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     public IReadOnlyList<SourceRef> LocalReferences => localReferences;
     public string SavedOcrPages { get; private set; } = "";
     public Guid? SavedOcrCollectionId { get; private set; }
+    public IReadOnlyList<Guid> PendingCollections { get; private set; } = [];
+    public void SetPendingCollections(IReadOnlyList<Guid> ids)
+    {
+        PendingCollections = ids.ToArray(); referencesEdited = true; review = null; Preview = ""; AckFrozen = false; Persist(); RefreshFlags();
+    }
+    public void ReportImportStatus(string message) => Status = message;
     public void SetImportState(string pages, Guid? collection)
     {
         SavedOcrPages = pages; SavedOcrCollectionId = collection; Persist();
@@ -37,7 +43,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         try
         {
             sessionStore.Save(new(current?.Id, Request, Background, Goal, Hours, WebTopic, WebSite,
-                ClarificationAnswer, localReferences, webReferences, WebReport, SavedOcrPages, SavedOcrCollectionId));
+                ClarificationAnswer, localReferences, webReferences, WebReport, SavedOcrPages, SavedOcrCollectionId, PendingCollections));
             recoveryFailed = false; RecoveryStatus = "已自动保存";
         }
         catch (Exception) { recoveryFailed = true; RecoveryStatus = "自动保存失败，请保留当前窗口并检查数据目录。"; }
@@ -61,6 +67,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
                 Hours = saved.Hours; webTopic = saved.WebTopic; webSite = saved.WebSite;
                 clarificationAnswer = saved.Clarification; localReferences = saved.References;
                 SavedOcrPages = saved.OcrPages; SavedOcrCollectionId = saved.OcrCollectionId;
+                PendingCollections = saved.PendingCollections ?? [];
                 webReferences = saved.WebReferences; webReport = saved.WebReport; referencesEdited = current is not null && !localReferences.SequenceEqual(current.Input.PreferredReferences);
                 review = null; Preview = ""; AckFrozen = false;
                 NotifyAll(); Notify(nameof(WebTopic)); Notify(nameof(WebSite)); Notify(nameof(WebReport)); Notify(nameof(ClarificationAnswer));
@@ -72,10 +79,21 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     }
     public async Task FormSubmissionAsync()
     {
+        if (Busy) return;
         Persist();
-        if (recoveryFailed || Busy) return;
+        if (recoveryFailed) { Status = RecoveryStatus; return; }
+        if (Busy) { Status = "正在处理，请等待完成或取消。"; return; }
+        if (PendingCollections.Count > 0) { Status = "教材扫描尚未完成，可能尚无可读正文。请点击继续扫描，完成后形成发送内容；也可点击×删除资料及扫描缓存。"; return; }
+        if (string.IsNullOrWhiteSpace(Request) && localReferences.Count > 0)
+            Request = "学习这些资料：" + string.Join("、", localReferences.Select(r => r.Locator.SourceLabel).Distinct());
         if (!string.IsNullOrWhiteSpace(ClarificationAnswer) && HasClarifications) { await SaveClarificationAsync(); return; }
-        if (CanRetryPlan) return;
+        if (CanRetryPlan)
+        {
+            const string hint = "资料预览已保留。请点击下方“携带错误信息重试”，将自动附上上次候选及校验错误；此处不会发送请求。";
+            if (!Status.Contains(hint, StringComparison.Ordinal)) Status += "\n" + hint;
+            return;
+        }
+        Status = "正在形成发送内容，请稍候。";
         if (Dirty || !localReferences.All(r => current!.Input.PreferredReferences.Contains(r))) await SaveAsync(localReferences);
         if (!Dirty) await PrepareAsync();
     }
@@ -93,8 +111,10 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         ? p.Candidate.Clarifications.Concat(p.Candidate.Strategy?.Clarifications ?? []).Distinct().ToArray() : [];
     public bool HasClarifications => ClarificationQuestions.Length > 0 && current?.Confirmed != true;
     public bool CanClarify => CanEdit && HasClarifications;
-    public bool CanSendPlan => CanEdit && review is not null && !review.CanRetry && !Dirty;
+    public bool CanSendPlan => CanEdit && PendingCollections.Count == 0 && review is not null && !review.CanRetry && !Dirty;
     public bool CanRetryPlan => CanEdit && review?.CanRetry == true && !Dirty;
+    public bool CanSubmitPlan => CanSendPlan || CanRetryPlan;
+    public string SubmitPlanLabel => CanRetryPlan ? "携带错误信息重试" : "发送并拟定计划";
     public bool CanOpenClarification => CanClarify || CanRetryPlan;
     public Task RetryPlanAsync() => CanRetryPlan ? ProposeAsync(true) : Task.CompletedTask;
     public string ConfirmationHint => Busy ? "正在处理请求，请等待或取消。"
@@ -178,7 +198,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     public bool Busy { get => busy; private set { busy = value; Notify(); RefreshFlags(); } }
     public bool CanOperate => !Busy;
     public bool CanEdit => !Busy && current?.Confirmed != true;
-    public bool CanConfirm => CanEdit && current?.Plan is not null && review is null && !Dirty && AckFrozen &&
+    public bool CanConfirm => CanEdit && PendingCollections.Count == 0 && current?.Plan is not null && review is null && !Dirty && AckFrozen &&
         current.Plan.Candidate.Clarifications.Count == 0 && (current.Plan.Candidate.Strategy?.Clarifications.Count ?? 0) == 0 && current.Plan.Candidate.Scope != "OutOfScope";
     public bool AckFrozen { get => ackFrozen; set { ackFrozen = value; Notify(); Notify(nameof(CanConfirm)); Notify(nameof(ConfirmationHint)); } }
     public string Identity => current is null ? "新学科草稿" : $"{current.Id} · 修订 {current.Revision} · {(current.Confirmed ? "已确认冻结" : "待确认")}";
@@ -195,7 +215,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         current = null; selected = null; request = background = goal = minutes = hours = ""; scope = "Adaptive";
         clarificationAnswer = ""; Notify(nameof(ClarificationAnswer));
         localReferences = []; referencesEdited = false; ResetWeb(); webSite = ""; Notify(nameof(WebSite));
-        SavedOcrPages = ""; SavedOcrCollectionId = null;
+        SavedOcrPages = ""; SavedOcrCollectionId = null; PendingCollections = [];
         review = null; Preview = ""; Summary = "尚无候选计划。"; Nodes.Clear(); AckFrozen = false;
         Status = "输入新的学习目标；资料只用于当前计划。";
         NotifyAll(); Persist();
@@ -228,7 +248,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         var input = new PlanningInput(Request.Trim(), string.IsNullOrWhiteSpace(Background) ? null : Background,
             string.IsNullOrWhiteSpace(Goal) ? null : Goal, weekly, Scope, references.Concat(webReferences).Distinct().ToArray());
         // Restored drafts keep their versioned sources unless the user explicitly selects replacements.
-        if (sessionStore is null && input.PreferredReferences.Count == 0 && current is not null &&
+        if (sessionStore is null && !referencesEdited && input.PreferredReferences.Count == 0 && current is not null &&
             input.Request == current.Input.Request && input.Goal == current.Input.Goal)
             input = input with { PreferredReferences = current.Input.PreferredReferences };
         var result = current is null ? await service.StartAsync(new(Guid.NewGuid(), 0, input), ct) :
@@ -239,6 +259,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     });
     public Task PrepareAsync() => Run(async ct =>
     {
+        if (PendingCollections.Count > 0) { Status = "扫描教材尚无正文，请先识别或移除。"; return; }
         if (current is null || Dirty) { Status = "请先保存当前输入；未保存的内容不会发送。"; return; }
         var draft = current;
         var result = await Task.Run(() => service.PrepareAsync(draft.Id, draft.Revision, ct), ct);
@@ -255,7 +276,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     public Task ProposeAsync(bool allow) => Run(async ct =>
     {
         if (!allow) { review = null; Preview = ""; Status = "已拒绝发送；输入和资料已保留。"; return; }
-        if (review is null || Dirty) { Status = "CONSENT_REQUIRED：请先预览已保存草稿。"; return; }
+        if (review is null || Dirty || PendingCollections.Count > 0) { Status = "CONSENT_REQUIRED：请先预览已保存草稿。"; return; }
         using var notice = new CancellationTokenSource();
         var delayed = DelayNotice(notice.Token);
         Result<PlanningDraft> result;
@@ -266,7 +287,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         {
             if (result.Error!.Code != ErrorCode.INVALID_MODEL_OUTPUT || !review.CanRetry) review = null;
             Show(result.Error!);
-            if (review?.CanRetry == true) Status += "\n可点击“同意携带错误信息重发尝试”：复用本次资料和回答，附上失败候选及校验错误；每次点击重新授权一轮，最多3次派发、900秒，可取消。";
+            if (review?.CanRetry == true) Status += "\n可点击“携带错误信息重试”：复用本次资料和回答，自动附上失败候选及校验错误；每次点击重新授权一轮，最多3次派发、900秒，可取消。";
             return;
         }
         review = null;
@@ -280,7 +301,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     }
     public Task ConfirmAsync() => Run(async ct =>
     {
-        if (current?.Plan is null || Dirty || !AckFrozen) { Status = "请核对当前完整计划并勾选冻结提示。"; return; }
+        if (current?.Plan is null || Dirty || !AckFrozen || PendingCollections.Count > 0) { Status = "请核对当前完整计划并勾选冻结提示。"; return; }
         var result = await service.ConfirmAsync(new(Guid.NewGuid(), current.Revision, new(current.Id, current.Plan.Hash, AckFrozen)), ct);
         if (!result.Ok) { Show(result.Error!); return; }
         await Reload(result.Value!.Id, ct); Status = "计划已确认冻结。可进入理论学习或生成实验材料；实验由你自行测评。";
@@ -375,6 +396,6 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         foreach (var property in new[] { nameof(Request), nameof(Background), nameof(Goal), nameof(Minutes), nameof(Hours), nameof(Scope), nameof(Identity), nameof(Selected), nameof(AckFrozen) }) Notify(property);
         RefreshFlags();
     }
-    private void RefreshFlags() { Notify(nameof(CanOperate)); Notify(nameof(CanEdit)); Notify(nameof(CanConfirm)); Notify(nameof(ConfirmationHint)); Notify(nameof(HasClarifications)); Notify(nameof(ClarificationQuestions)); Notify(nameof(CanClarify)); Notify(nameof(CanSendPlan)); Notify(nameof(CanRetryPlan)); Notify(nameof(CanOpenClarification)); }
+    private void RefreshFlags() { Notify(nameof(CanOperate)); Notify(nameof(CanEdit)); Notify(nameof(CanConfirm)); Notify(nameof(ConfirmationHint)); Notify(nameof(HasClarifications)); Notify(nameof(ClarificationQuestions)); Notify(nameof(CanClarify)); Notify(nameof(CanSendPlan)); Notify(nameof(CanRetryPlan)); Notify(nameof(CanSubmitPlan)); Notify(nameof(SubmitPlanLabel)); Notify(nameof(CanOpenClarification)); }
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
 }

@@ -76,20 +76,18 @@ internal static class P8DesktopCheck
                 main.WorkspacePanel.DataContext = workspace;
                 main.ChatPanel.Visibility = Visibility.Visible; main.WorkspacePanel.Visibility = Visibility.Visible; main.ImportExpander.IsExpanded = true;
                 await workspace.LoadAsync(); await workspace.ImportCollectionAsync(HostSelection.FromFilePicker(scan));
-                main.OcrExpander.IsExpanded = true;
                 main.UpdateLayout();
-                var pages = Find(main, "OcrPages") as TextBox;
-                Check(pages is not null, "ocr-page-control-present");
-                for (DependencyObject? ancestor = pages; ancestor is not null; ancestor = VisualTreeHelper.GetParent(ancestor))
-                    if (ancestor is Expander expander) expander.IsExpanded = true;
-                pages!.Text = "1-21"; pages.GetBindingExpression(TextBox.TextProperty)!.UpdateSource(); await workspace.PrepareOcrAsync();
+                Check(Find(main, "OcrPages") is null && Find(main, "OcrCollection") is null, "manual-ocr-controls-removed");
+                workspace.OcrPages = "1-21"; await workspace.PrepareOcrAsync();
                 Check(workspace.Status.Contains("最多20页") && ocrProvider.Calls == 0, "ocr-oversized-batch-no-dispatch");
-                pages.Text = "1"; pages.GetBindingExpression(TextBox.TextProperty)!.UpdateSource(); await workspace.PrepareOcrAsync();
+                workspace.OcrPages = "1"; await workspace.PrepareOcrAsync();
                 Check(workspace.OcrPreview.Contains("页序：1") && ocrProvider.Calls == 0, "ocr-preview-no-dispatch");
-                pages.Text = "2"; pages.GetBindingExpression(TextBox.TextProperty)!.UpdateSource(); await workspace.RunOcrAsync();
+                workspace.OcrPages = "2"; await workspace.RunOcrAsync();
                 Check(ocrProvider.Calls == 0 && workspace.Status.Contains("先预览"), "ocr-page-change-invalidates-consent");
-                pages.Text = "1"; pages.GetBindingExpression(TextBox.TextProperty)!.UpdateSource(); await workspace.PrepareOcrAsync(); await workspace.RunOcrAsync();
+                workspace.OcrPages = "1"; await workspace.PrepareOcrAsync(); await workspace.RunOcrAsync();
                 Check(ocrProvider.Calls == 1 && workspace.Status.Contains("待人工复核"), "ocr-explicit-run-quality-visible");
+                Check(workspace.OcrPages == "2", "ocr-next-batch-auto-suggested");
+                workspace.OcrPages = "1";
                 await workspace.PrepareOcrAsync(); await workspace.RunOcrAsync();
                 Check(ocrProvider.Calls == 1, "ocr-ui-cache-no-dispatch");
                 main.UpdateLayout(); Capture(main, Path.Combine(evidence, "ocr-workspace.png"));

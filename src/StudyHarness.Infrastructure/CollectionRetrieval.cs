@@ -28,9 +28,23 @@ internal sealed partial class CollectionStore
                 var score = Tokens(text + " " + reference.Locator.Heading).Split(' ').Count(terms.Contains);
                 candidates.Add((key, reader.GetInt32(1), text, reference, score));
             }
-        // Seed each requested section before spending the rest on relevance and adjacent chunks.
+        // PDF page bindings describe the eligible chapter, not a requirement to send every page.
+        // Select evidence independently for each lesson objective, then retain semantic dependencies.
+        var paged = entries.Count > 1 && entries.All(key => key.StartsWith("page-", StringComparison.Ordinal));
         var seedsList = new List<(string Entry, int Start, string Text, SourceRef Reference, int Score)>();
-        foreach (var group in candidates.GroupBy(c => c.Entry))
+        if (paged)
+        {
+            foreach (var objective in query.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var objectiveTerms = LessonSourceSelector.Terms(objective);
+                var best = candidates.Where(c => LessonSourceSelector.HasBody(c.Text))
+                    .Select(c => (Candidate: c, Relevance: LessonSourceSelector.Score(c.Text, objectiveTerms)))
+                    .Where(c => c.Relevance > 0).OrderByDescending(c => c.Relevance).FirstOrDefault();
+                if (best.Relevance > 0) seedsList.Add(best.Candidate);
+            }
+            if (seedsList.Count == 0) throw new InvalidDataException("No relevant textbook evidence for lesson objectives");
+        }
+        foreach (var group in candidates.Where(_ => !paged).GroupBy(c => c.Entry))
         {
             var ranked = group.Where(c => LessonSourceSelector.HasBody(c.Text)).OrderByDescending(c => c.Score).ThenBy(c => c.Start).ToArray();
             var uncovered = terms.Where(t => ranked.Any(c => (c.Text + " " + c.Reference.Locator.Heading).Contains(t, StringComparison.OrdinalIgnoreCase))).ToHashSet();
@@ -85,16 +99,16 @@ internal sealed partial class CollectionStore
                     throw new InvalidDataException("Complete semantic evidence exceeds budget; revise lesson scope");
                 used += text.Length; result.Add(new(reference, binding.Manifest.CollectionId, text, false));
             }
-            if (entries.Any(key => !result.Any(r => r.Reference.Locator.Block.StartsWith(key + ":", StringComparison.Ordinal))))
+            if (!paged && entries.Any(key => !result.Any(r => r.Reference.Locator.Block.StartsWith(key + ":", StringComparison.Ordinal))))
                 throw new InvalidDataException("Requested section has no complete evidence");
             return result;
         }
-        foreach (var item in ordered)
+        foreach (var item in paged ? seeds : ordered)
         {
             if (used + item.Text.Length > budget || result.Count >= 90) continue;
             result.Add(new(item.Reference, binding.Manifest.CollectionId, item.Text, false)); used += item.Text.Length;
         }
-        if (entries.Any(key => !result.Any(r => r.Reference.Locator.Block.StartsWith(key + ":", StringComparison.Ordinal))))
+        if (paged && result.Count != seeds.Length || !paged && entries.Any(key => !result.Any(r => r.Reference.Locator.Block.StartsWith(key + ":", StringComparison.Ordinal))))
             throw new InvalidDataException("Requested sections exceed context budget or have no body");
         return result;
     }

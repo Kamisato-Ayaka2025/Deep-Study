@@ -55,6 +55,8 @@ public sealed class HybridKnowledgeTests
             [node], 2, Coverage: [new("d1/body", "included", ["n1"], ""), new("d1/excluded", "excluded", [], "用户排除")]);
         var plan = new PlanDocument(candidate, [], [], "original", null, Collections: [collection]);
         Assert.True(CourseMaterials.MissingBinding(plan, node));
+        Assert.Contains("n2",CourseMaterials.MissingBindingError(plan));
+        Assert.Null(CourseMaterials.MissingBindingError(plan with { Candidate=candidate with { Coverage=[new("d1/body","included",["n2"],null)] } }));
         Assert.Equal(["body"], CourseMaterials.Entries(plan, node, collection, 0));
         Assert.Equal("original", plan.Hash);
         Assert.DoesNotContain(candidate.Coverage!, e => e.NodeKeys.Contains("n2"));

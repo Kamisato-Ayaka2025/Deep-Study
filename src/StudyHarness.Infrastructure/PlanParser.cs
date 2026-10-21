@@ -63,7 +63,28 @@ public sealed class PlanParser : IPlanParser
                 return Result<PlanCandidate>.Fail(ErrorCode.INVALID_MODEL_OUTPUT,
                     "模型已返回JSON，但计划结构不符合Schema：" + string.Join("；", issues) + "。未保存候选计划；请重新拟定。");
             }
-            return Result<PlanCandidate>.Success(JsonSerializer.Deserialize<PlanCandidate>(text, Wire.Options)!);
+            var parsed = JsonSerializer.Deserialize<PlanCandidate>(text, Wire.Options)!;
+            if (derive && schema == AdaptiveSchema && parsed.Coverage is not null)
+            {
+                var merged = new List<PlanCoverage>();
+                foreach (var group in parsed.Coverage.GroupBy(e => e.EntryKey, StringComparer.Ordinal))
+                {
+                    var first = group.First();
+                    // Merge only facts already declared by the model. Conflicting states remain invalid.
+                    if (group.All(e => e.State == "included" && e.NodeKeys.Count > 0 && (e.Reason is null || !string.IsNullOrWhiteSpace(e.Reason))))
+                    {
+                        var reasons = group.Select(e => e.Reason).Where(r => r is not null).Distinct().ToArray();
+                        var reason = reasons.Length == 0 ? null : string.Join("；", reasons);
+                        if (reason?.Length > 2000) { merged.AddRange(group); continue; }
+                        merged.Add(first with { NodeKeys = group.SelectMany(e => e.NodeKeys).Distinct().ToArray(), Reason = reason });
+                    }
+                    else if (group.All(e => e.State == first.State && e.Reason == first.Reason && e.NodeKeys.SequenceEqual(first.NodeKeys)))
+                        merged.Add(first);
+                    else merged.AddRange(group);
+                }
+                parsed = parsed with { Coverage = merged };
+            }
+            return Result<PlanCandidate>.Success(parsed);
         }
         catch (Exception e) when (e is JsonException or ArgumentException or InvalidOperationException)
         { return Result<PlanCandidate>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "模型回复不是可读取的计划JSON，或超过大小/嵌套限制；未保存候选计划。"); }

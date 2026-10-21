@@ -7,6 +7,19 @@ namespace StudyHarness.Tests.Unit;
 
 public sealed class AdaptiveBudgetTests
 {
+    [Fact]
+    public void LessonFallback_DoublesContextWithoutIncreasingPlanningOrVerifiedLimits()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var unknown = AdaptiveBudgetPolicy.Conservative("probe", now);
+        var input = new string('x', 53248);
+        var budget = AdaptiveBudgetPolicy.Create(unknown, "probe", input, false, now, true);
+        Assert.Equal(4096, budget.OutputReserve); Assert.Equal(8192, budget.SafetyMargin);
+        Assert.Throws<ContextBudgetExceededException>(() => AdaptiveBudgetPolicy.Create(unknown, "probe", input + "x", false, now, true));
+        Assert.Throws<ContextBudgetExceededException>(() => AdaptiveBudgetPolicy.Create(unknown, "probe", input, true, now));
+        Assert.Throws<ContextBudgetExceededException>(() => AdaptiveBudgetPolicy.Create(unknown with { Verified = true }, "probe", input, false, now, true));
+        Assert.Contains("能力未取得", new ContextBudgetExceededException(60000, 4096, 8192, 65536, false).UserMessage("probe"));
+    }
     [Theory]
     [InlineData("0.5", 30)] [InlineData("2", 120)] [InlineData("8", 480)]
     [InlineData("20", 1200)] [InlineData("168", 10080)] [InlineData("0.05", 3)]
@@ -37,8 +50,8 @@ public sealed class AdaptiveBudgetTests
         var budget = AdaptiveBudgetPolicy.Create(caps, "probe", "中", false, now);
         Assert.Equal(3, budget.InputUpperBound); Assert.Equal(16384, budget.OutputReserve);
         Assert.Equal(3, budget.MaxDispatches); Assert.Equal(2, budget.MaxTransientRetries);
-        Assert.Throws<ArgumentException>(() => AdaptiveBudgetPolicy.Create(caps, "probe", new string('中', 131073), false, now));
-        Assert.Throws<ArgumentException>(() => AdaptiveBudgetPolicy.Create(caps with { ContextWindow = 20000, MaxOutputTokens = 16384 }, "probe", "small", false, now));
+        Assert.Throws<ContextBudgetExceededException>(() => AdaptiveBudgetPolicy.Create(caps, "probe", new string('中', 131073), false, now));
+        Assert.Throws<ContextBudgetExceededException>(() => AdaptiveBudgetPolicy.Create(caps with { ContextWindow = 20000, MaxOutputTokens = 16384 }, "probe", "small", false, now));
     }
 
     [Fact]
@@ -52,7 +65,7 @@ public sealed class AdaptiveBudgetTests
         Assert.Equal(10000, AdaptiveBudgetPolicy.Create(caps with { MaxOutputTokens = 10000 }, "probe", "json", true, now).OutputReserve);
         Assert.Equal(10000, AdaptiveBudgetPolicy.Create(caps with { MaxOutputTokens = 10000 }, "probe", "json", false, now, true).OutputReserve);
         Assert.Equal(4096, AdaptiveBudgetPolicy.Create(caps with { Verified = false }, "probe", "json", false, now, true).OutputReserve);
-        Assert.Throws<ArgumentException>(() => AdaptiveBudgetPolicy.Create(caps with { ContextWindow = 40000, MaxOutputTokens = 32768 }, "probe", "json", false, now, true));
+        Assert.Throws<ContextBudgetExceededException>(() => AdaptiveBudgetPolicy.Create(caps with { ContextWindow = 40000, MaxOutputTokens = 32768 }, "probe", "json", false, now, true));
     }
 
     [Fact]
@@ -64,7 +77,7 @@ public sealed class AdaptiveBudgetTests
         {
             Assert.False(AdaptiveBudgetPolicy.IsFresh(invalid, "probe", now));
             Assert.Equal(4096, AdaptiveBudgetPolicy.Create(invalid, "probe", "short", true, now).OutputReserve);
-            Assert.Throws<ArgumentException>(() => AdaptiveBudgetPolicy.Create(invalid, "probe", new string('x', 30000), true, now));
+            Assert.Throws<ContextBudgetExceededException>(() => AdaptiveBudgetPolicy.Create(invalid, "probe", new string('x', 30000), true, now));
         }
     }
 }

@@ -2,6 +2,8 @@ using StudyHarness.Contracts;
 
 namespace StudyHarness.Application;
 
+public sealed class PdfPreparationException(string message) : IOException(message);
+
 public sealed record RenderedPage(Guid CollectionId, string SourceFingerprint, int Page, string RenderVersion, byte[] Png, string ImageHash);
 public sealed record OcrPageResult(string Text, IReadOnlyList<string> QualityFlags, TokenUsage? Usage, string Model, string PromptVersion);
 public interface IOcrKnowledge

@@ -68,6 +68,32 @@ internal static class P12DesktopCheck
                 var path = Path.Combine(root,"fixture.c"); await File.WriteAllTextAsync(path,"// 集合是确定对象的全体。\nint count = 2;");
                 await workspace.ImportAsync(HostSelection.FromPlanFilePicker(path));
                 Check(workspace.References.Count == 1,"single-code-import-auto-bound");
+                window.ImportExpander.IsExpanded = true;
+                window.UpdateLayout(); await Task.Delay(100);
+                var remove = FindButtons(window).Single(b => System.Windows.Automation.AutomationProperties.GetAutomationId(b) == "RemoveMaterial");
+                await planning.FormSubmissionAsync(); Check(planning.CanSendPlan, "import-preview-before-removal");
+                Click(remove);
+                Check(workspace.References.Count == 0 && planning.Preview == "" && !planning.CanSendPlan, "remove-button-invalidates-submission");
+                Check(new SqlitePlanningSessionStore(root).Load()!.References.Count == 0 && File.Exists(path), "remove-button-durable-source-preserved");
+                await workspace.ImportAsync(HostSelection.FromPlanFilePicker(path));
+                Check(workspace.Materials.Count == 1, "reimport-one-material-row");
+                window.MainScroll.ScrollToVerticalOffset(580);
+                await Screenshot(window,evidence,"import-removal");
+                var scan = new UglyToad.PdfPig.Writer.PdfDocumentBuilder(); scan.AddPage(400, 500);
+                var scanPath = Path.Combine(root, "scanned-book.pdf"); await File.WriteAllBytesAsync(scanPath, scan.Build());
+                await workspace.ImportAsync(HostSelection.FromPlanFilePicker(scanPath));
+                Check(workspace.Materials.Count == 2 && workspace.OcrPages == "1", "scanned-book-visible-auto-range");
+                Click(FindButtons(window).Single(b => System.Windows.Automation.AutomationProperties.GetAutomationId(b) == "PreparePlan"));
+                await Wait(() => planning.Status.Contains("尚无可读正文"));
+                Check(window.ImportExpander.IsExpanded && planning.Preview == "", "scan-submit-explains-next-step");
+                window.UpdateLayout(); await Task.Delay(100);
+                window.MainScroll.ScrollToVerticalOffset(650);
+                Check(FindTexts(window).Any(t => t.Text.Contains("scanned-book.pdf")), "material-row-shows-book-name");
+                await Screenshot(window, evidence, "scanned-import");
+                Click(FindButtons(window).Single(b => b.DataContext is MaterialChoice { PendingId: not null } &&
+                    System.Windows.Automation.AutomationProperties.GetAutomationId(b) == "RemoveMaterial"));
+                await Wait(() => !workspace.Busy && workspace.Materials.Count == 1);
+                Check(workspace.Materials.Count == 1 && planning.PendingCollections.Count == 0, "remove-scanned-book-keeps-other-source");
                 var journal = new SqlitePlanningSessionStore(root).Load()!;
                 Check(journal.Request == planning.Request && journal.WebSite == "example.org" && journal.References.Count == 1,"form-durable-before-submit");
                 Click(window.NavCoursesButton); await Task.Delay(150);
@@ -151,6 +177,12 @@ internal static class P12DesktopCheck
         if (root is Button button) yield return button;
         for (var i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)
             foreach (var child in FindButtons(VisualTreeHelper.GetChild(root,i))) yield return child;
+    }
+    private static IEnumerable<TextBlock> FindTexts(DependencyObject root)
+    {
+        if (root is TextBlock text) yield return text;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            foreach (var child in FindTexts(VisualTreeHelper.GetChild(root, i))) yield return child;
     }
     private static async Task Screenshot(Window window,string folder,string name)
     {

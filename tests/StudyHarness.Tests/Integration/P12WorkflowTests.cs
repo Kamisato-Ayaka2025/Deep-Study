@@ -45,6 +45,30 @@ public sealed class P12WorkflowTests : IDisposable
             provider, imported.Value!.References![0], knowledge, selected.Id);
     }
     [Fact]
+    public async Task LauncherDotSegmentRootPreservesDraftAndFormsPreviewWithoutDispatch()
+    {
+        var f = await Setup();
+        var launcher = Path.Combine(root, "release", "app");
+        Directory.CreateDirectory(launcher);
+        var configuredRoot = Path.Combine(launcher, "..", "..");
+        var vm = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(configuredRoot));
+        await vm.RestoreSessionAsync();
+        vm.Request = "学习集合"; vm.Goal = "通过考试"; vm.Hours = "10";
+        vm.SetReferences([f.Reference]);
+        await vm.FormSubmissionAsync();
+        Assert.True(vm.CanSendPlan, vm.Status);
+        Assert.NotEmpty(vm.Preview);
+        var restored = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(root));
+        await restored.RestoreSessionAsync();
+        Assert.Equal(vm.Request, restored.Request);
+        Assert.Equal(vm.Goal, restored.Goal);
+        Assert.Equal(vm.Hours, restored.Hours);
+        Assert.Equal([f.Reference], restored.LocalReferences);
+        await restored.FormSubmissionAsync();
+        Assert.True(restored.CanSendPlan, restored.Status);
+        Assert.Empty(f.Provider.Requests);
+    }
+    [Fact]
     public async Task IncompleteInputReferencesAndClarificationSurviveFreshInstanceWithoutDispatch()
     {
         var f = await Setup();
@@ -140,6 +164,72 @@ public sealed class P12WorkflowTests : IDisposable
         var request = Assert.Single(f.Provider.Requests);
         Assert.Equal("你是什么模型？", Assert.Single(request.Sources).Text);
         Assert.Equal(512, request.MaxOutputTokens); Assert.Contains("连接成功", vm.Status);
+    }
+    [Fact]
+    public async Task ScannedImportIsVisibleAutoRangesAndRemovalSurvivesRestart()
+    {
+        var f = await Setup();
+        var workspace = new WorkspaceViewModel(new(f.Knowledge, new(new SqliteSettingsStore(root)), new(f.Provider)));
+        var planning = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(root));
+        workspace.PendingCollections.CollectionChanged += (_, _) => planning.SetPendingCollections(workspace.PendingCollections.ToArray());
+        workspace.References.CollectionChanged += (_, _) => planning.SetReferences(workspace.References.ToArray());
+        await workspace.LoadAsync();
+        var pdf = new PdfDocumentBuilder();
+        for (var i = 0; i < 25; i++) pdf.AddPage(400, 500);
+        var path = Path.Combine(root, "scanned.pdf"); var bytes = pdf.Build();
+        await File.WriteAllBytesAsync(path, bytes);
+        await workspace.ImportAsync(HostSelection.FromPlanFilePicker(path));
+        Assert.Empty(workspace.References); Assert.Single(workspace.Materials);
+        Assert.Single(workspace.PendingCollections); Assert.Equal(20, workspace.OcrPages.Split(',').Length);
+        Assert.Contains("扫描页", workspace.Status);
+        planning.Request = "学习计算机网络";
+        await planning.FormSubmissionAsync();
+        Assert.Contains("尚无可读正文", planning.Status); Assert.False(planning.CanSendPlan);
+        var restored = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(root));
+        await restored.RestoreSessionAsync(); Assert.Single(restored.PendingCollections);
+        workspace.RemoveMaterial(Assert.Single(workspace.Materials));
+        await restored.RestoreSessionAsync(); Assert.Empty(restored.PendingCollections);
+        Assert.Null(restored.SavedOcrCollectionId); Assert.Empty(workspace.Materials);
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
+        Assert.Single(await f.Knowledge.CollectionsAsync(f.Library)); Assert.Empty(f.Provider.Requests);
+    }
+    [Fact]
+    public async Task TextbookOnlyInfersRequestAndGroupedRemovalInvalidatesPreview()
+    {
+        var f = await Setup();
+        var workspace = new WorkspaceViewModel(new(f.Knowledge, new(new SqliteSettingsStore(root)), new(f.Provider)));
+        var planning = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(root));
+        workspace.References.CollectionChanged += (_, _) => planning.SetReferences(workspace.References.ToArray());
+        await workspace.LoadAsync();
+        workspace.RestoreReferences([f.Reference, f.Reference with { NodeId = Guid.NewGuid() }]);
+        Assert.Single(workspace.Materials);
+        workspace.RemoveMaterial(workspace.Materials[0]); Assert.Empty(workspace.References);
+        workspace.RestoreReferences([f.Reference]);
+        await planning.FormSubmissionAsync(); Assert.True(planning.CanSendPlan, planning.Status);
+        Assert.Contains(f.Reference.Locator.SourceLabel, planning.Request);
+        workspace.RemoveMaterial(workspace.Materials[0]);
+        Assert.Empty(planning.Preview); Assert.False(planning.CanSendPlan);
+        await planning.ProposeAsync(true); Assert.Empty(f.Provider.Requests);
+        var restored = new PlanningViewModel(f.Service, sessionStore: new SqlitePlanningSessionStore(root));
+        await restored.RestoreSessionAsync(); Assert.Empty(restored.LocalReferences);
+        Assert.NotNull((await f.Knowledge.ResolveAsync(f.Reference)).Text);
+    }
+    [Fact]
+    public async Task MixedPdfAutomaticallyBindsTextAndSuggestsOnlyMissingPages()
+    {
+        var f = await Setup();
+        var workspace = new WorkspaceViewModel(new(f.Knowledge, new(new SqliteSettingsStore(root)), new(f.Provider)));
+        await workspace.LoadAsync();
+        var pdf = new PdfDocumentBuilder(); var font = pdf.AddStandard14Font(Standard14Font.Helvetica);
+        pdf.AddPage(400,500).AddText("Computer networks connect hosts using packet switching.",12,new PdfPoint(20,450),font);
+        pdf.AddPage(400,500);
+        var path = Path.Combine(root,"mixed.pdf"); await File.WriteAllBytesAsync(path,pdf.Build());
+        await workspace.ImportAsync(HostSelection.FromPlanFilePicker(path));
+        Assert.Single(workspace.References); Assert.Empty(workspace.PendingCollections);
+        Assert.Equal("2", workspace.OcrPages); Assert.Contains("部分页待识别",workspace.Status);
+        await workspace.ImportAsync(HostSelection.FromPlanFilePicker(path));
+        Assert.Single(workspace.References); Assert.Single(workspace.Materials);
+        Assert.Empty(f.Provider.Requests);
     }
     [Fact]
     public async Task UnknownRecoveryVersionFailsClosedWithoutReplacingSavedInput()

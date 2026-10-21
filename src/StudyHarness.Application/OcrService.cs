@@ -26,7 +26,15 @@ public sealed class OcrService(IOcrKnowledge knowledge, SettingsService settings
         var config = await settings.GetAsync(ct); var capability = await capabilities.GetAsync(config.Model, ct);
         if (!AdaptiveBudgetPolicy.IsFresh(capability, config.Model, DateTimeOffset.UtcNow) || !capability.SupportsImages || capability.MaxOutputTokens < 8192)
             return Result<OcrReview>.Fail(ErrorCode.MODEL_INVALID, "当前模型视觉能力未确认，请检查模型配置后重试。");
-        var rendered = await knowledge.RenderPagesAsync(library, collection, pages, ct);
+        IReadOnlyList<RenderedPage> rendered;
+        try { rendered = await knowledge.RenderPagesAsync(library, collection, pages, ct); }
+        catch (OperationCanceledException) { throw; }
+        catch (PdfPreparationException e) { return Result<OcrReview>.Fail(ErrorCode.SOURCE_UNAVAILABLE, e.Message); }
+        catch (FileNotFoundException) { return Result<OcrReview>.Fail(ErrorCode.SOURCE_UNAVAILABLE, "PDF_SOURCE_MISSING：原PDF已移动或删除，请恢复原文件后继续扫描。"); }
+        catch (UnauthorizedAccessException) { return Result<OcrReview>.Fail(ErrorCode.SOURCE_UNAVAILABLE, "PDF_ACCESS：原PDF或资料库无法读取，请检查文件权限。"); }
+        catch (InvalidDataException) { return Result<OcrReview>.Fail(ErrorCode.SOURCE_UNAVAILABLE, "PDF_SOURCE_INVALID：原PDF已变化、页范围无效或文档损坏；请恢复原文件，或重新导入已修改的文件。"); }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        { return Result<OcrReview>.Fail(ErrorCode.SOURCE_UNAVAILABLE, $"PDF_PREPARE：本批页图准备失败（错误码{e.HResult:X8}），尚未发送本批；已完成进度保留。"); }
         if (rendered.Count == 0 || rendered.Select(p => p.Page).Distinct().Count() != rendered.Count ||
             rendered.Select(p => p.SourceFingerprint).Distinct().Count() != 1 ||
             rendered.Any(p => p.CollectionId != collection || !pages.Contains(p.Page)) || rendered.Any(p => p.Png.Length is < 1 or > 4194304 || Convert.ToHexString(SHA256.HashData(p.Png)) != p.ImageHash))

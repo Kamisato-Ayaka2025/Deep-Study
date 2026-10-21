@@ -35,7 +35,7 @@ public static class AdaptivePlanRules
             {
                 var e = plan.Coverage[i]; var path = $"coverage[{i}]";
                 if (e is null || string.IsNullOrWhiteSpace(e.EntryKey) || e.EntryKey.Length > 200) { Add("PCOV002", path, "目录键为空或超限"); continue; }
-                if (!seen.Add(e.EntryKey)) Add("PCOV003", path + ".entryKey", "目录键重复");
+                if (!seen.Add(e.EntryKey)) Add("PCOV003", path + ".entryKey", "目录键重复或状态冲突：" + SafeKey(e.EntryKey) + "；将相同页的实际课程合并到同一nodeKeys，不能同时included与excluded/unavailable");
                 if (e.NodeKeys is null || e.NodeKeys.Distinct().Count() != e.NodeKeys.Count || e.NodeKeys.Any(k => !plan.Nodes.Any(n => n.Key == k)))
                     Add("PCOV004", path + ".nodeKeys", "节点引用为空、重复或不存在");
                 if (e.State == "included")
@@ -52,4 +52,29 @@ public static class AdaptivePlanRules
 
     public static bool CoversDirectory(PlanCandidate plan, IEnumerable<string> entryKeys) =>
         plan.Coverage is not null && plan.Coverage.Select(e => e.EntryKey).ToHashSet(StringComparer.Ordinal).SetEquals(entryKeys);
+
+    private static string SafeKey(string key) => System.Text.RegularExpressions.Regex.IsMatch(key, @"^d[1-9][0-9]?/(page|url)-[1-9][0-9]{0,4}$") ? key : "<非标准目录键>";
+    public static string DirectoryDifference(PlanCandidate plan, IEnumerable<string> entryKeys)
+    {
+        var expected = entryKeys.ToHashSet(StringComparer.Ordinal);
+        var actual = (plan.Coverage ?? []).Select(e => e.EntryKey).ToHashSet(StringComparer.Ordinal);
+        var missing = expected.Except(actual).ToArray(); var extra = actual.Except(expected).ToArray();
+        return $"缺失{missing.Length}项：{SummarizeKeys(missing)}；不存在{extra.Length}项：{SummarizeKeys(extra)}。";
+    }
+    private static string SummarizeKeys(IEnumerable<string> keys)
+    {
+        var ranges = new List<string>();
+        foreach (var group in keys.GroupBy(k => SafeKey(k) == k ? k[..(k.LastIndexOf('-') + 1)] : ""))
+        {
+            if (group.Key.Length == 0) { ranges.Add("<非标准目录键>"); continue; }
+            var numbers = group.Select(k => int.Parse(k[group.Key.Length..])).Order().ToArray();
+            for (var i=0;i<numbers.Length;i++)
+            {
+                var start=numbers[i]; var end=start;
+                while(i+1<numbers.Length && numbers[i+1]==end+1) end=numbers[++i];
+                ranges.Add(group.Key+start+(end==start ? "" : ".."+end));
+            }
+        }
+        return string.Join(", ",ranges.Take(40))+(ranges.Count>40 ? "（其余见完整冻结目录）" : "");
+    }
 }

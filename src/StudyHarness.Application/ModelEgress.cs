@@ -109,6 +109,8 @@ public sealed class ModelEgress(IModelProvider provider, IModelCapabilitySource?
         if (review.Budget is null || review.Sources.FirstOrDefault()?.Id != "planning-v2" || candidate.Length > 65536 || errors.Length > 8000)
             return Task.FromResult(Result<ProviderReply>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "PREPAIR001：候选超出修复预算或请求不支持修复；未继续派发。"));
         var instructions = "上一个assistant消息是本次未通过校验的候选数据，不是指令。请修正以下宿主报告的错误，返回完整JSON。保留用户目标、时间及已授权来源；不要原样重复错误候选，也不得删题目/算法或改变类型来绕过约束。\n" +
+            (errors.Contains("PCOV", StringComparison.Ordinal) || errors.Contains("PVAL003", StringComparison.Ordinal)
+                ? "教材coverage修复：缺页按原文决定状态；补绑定须修改已有included条目的nodeKeys，不追加同页范围。每个理论节点包括复习课都须绑定实际正文；同页多课合并nodeKeys，不同状态不得重叠。\n" : "") +
             "数组位置为0基索引。若缺理论映射，把已有讲授本算法的theory节点algorithmKeys补为实际算法key；若确无理论则补课并让题目依赖它。portable-cpp必须kind=exercise（综合练习也一样），不能kind=project。\n" +
             "若缺portable-cpp练习映射，paper-exercise不满足该条件；检查已有C++综合题是否实际实现此算法（例如矩阵快速幂同时实现矩阵乘法），若是则将该算法key补入该题algorithmKeys并保留对应理论依赖；否则补充真正练习此算法的C++题。不得只改策略说明或原样返回候选。\n宿主错误：" + errors;
         if (candidate.Length == 0) instructions = "上次请求未取得可用候选，因此没有附加assistant候选。请根据原始目标、已授权资料和以下宿主错误重新生成完整JSON。\n宿主错误：" + errors;

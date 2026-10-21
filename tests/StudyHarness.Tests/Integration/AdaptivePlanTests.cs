@@ -48,12 +48,31 @@ public sealed class AdaptivePlanTests : IDisposable
         foreach (var key in new[] { "d1/page-2..1", "d1/page-1..10001" })
             Assert.False(parser.Parse(JsonSerializer.Serialize(candidate with { Coverage = [new(key, "unavailable", [], "缺口")] }, Wire.Options)).Ok);
         var duplicate = candidate with { Coverage = [new("d1/page-1..2", "unavailable", [], "缺口"), new("d1/page-2", "unavailable", [], "缺口")] };
-        Assert.False(AdaptivePlanRules.Valid(parser.Parse(JsonSerializer.Serialize(duplicate, Wire.Options)).Value!));
+        Assert.True(AdaptivePlanRules.Valid(parser.Parse(JsonSerializer.Serialize(duplicate, Wire.Options)).Value!));
+        Assert.False(AdaptivePlanRules.Valid(parser.ParseRaw(JsonSerializer.Serialize(duplicate, Wire.Options)).Value!));
         var many = Candidate with { SourceKeys = Enumerable.Range(1, 13).Select(i => "s" + i).ToArray() };
         Assert.True(parser.Parse(JsonSerializer.Serialize(many, Wire.Options)).Ok);
         Assert.False(PlanRules.Validate(Subject, Input, many, Sources, null).Ok); // absent source IDs still rejected
     }
 
+    [Fact]
+    public void OverlappingCoverage_PreservesAllDeclaredBindings_RejectsConflictsAndUnknownNodes()
+    {
+        var parser = new PlanParser();
+        var candidate = Candidate with { Coverage = [new("d1/page-1..384", "included", ["n1"], null), new("d1/page-350..384", "included", ["n2"], "综合复习")] };
+        var parsed = parser.Parse(JsonSerializer.Serialize(candidate, Wire.Options)).Value!;
+        Assert.Equal(384, parsed.Coverage!.Count);
+        Assert.Equal(["n1", "n2"], parsed.Coverage[^1].NodeKeys);
+        Assert.Equal(["n1"], parsed.Coverage[0].NodeKeys);
+        Assert.Equal(JsonSerializer.Serialize(candidate.Nodes, Wire.Options), JsonSerializer.Serialize(parsed.Nodes, Wire.Options));
+        Assert.True(AdaptivePlanRules.Valid(parsed));
+        var conflict = candidate with { Coverage = [candidate.Coverage![0], new("d1/page-384", "excluded", [], "不学习")] };
+        Assert.Contains(AdaptivePlanRules.Problems(parser.Parse(JsonSerializer.Serialize(conflict, Wire.Options)).Value!), e => e.Contains("PCOV003") && e.Contains("d1/page-384"));
+        var unknown = candidate with { Coverage = [candidate.Coverage![0], new("d1/page-384", "included", ["n99"], null)] };
+        Assert.Contains(AdaptivePlanRules.Problems(parser.Parse(JsonSerializer.Serialize(unknown, Wire.Options)).Value!), e => e.Contains("PCOV004"));
+        var difference = AdaptivePlanRules.DirectoryDifference(parsed with { Coverage = parsed.Coverage.Skip(1).Append(new("d1/page-999", "excluded", [], "多余")).ToArray() }, Enumerable.Range(1,384).Select(i => "d1/page-"+i));
+        Assert.Contains("缺失1项：d1/page-1", difference); Assert.Contains("不存在1项：d1/page-999", difference);
+    }
     [Fact]
     public void SchemaAndRules_AgreeAndRejectUnsupportedOrInconsistentStrategies()
     {
@@ -123,6 +142,28 @@ public sealed class AdaptivePlanTests : IDisposable
         Assert.True((await store.ConfirmAsync(new(Guid.NewGuid(), saved.Revision, new(draft.Id, document.Hash, true)))).Ok);
         var restored = (await new SqlitePlanningStore(root).GetAsync(draft.Id))!;
         Assert.True(restored.Confirmed); Assert.Equal(document.Hash, restored.Plan!.Hash); Assert.Equal(1L, CountMetadata());
+    }
+    [Theory]
+    [InlineData(120)]
+    [InlineData(384)]
+    [InlineData(505)]
+    public async Task LongBookOverlap_ValidatesConfirmsAndRestoresEveryPageBinding(int pages)
+    {
+        var collection = new PlanCollection(Subject, new(Subject, "v1", new string('B',64),true,
+            Enumerable.Range(1,pages).Select(i => new CollectionEntry("page-"+i,i.ToString(),"合成第"+i+"页","textReady",new string('A',64),null,[])).ToArray()),Sources.Select(s=>s.Reference).ToArray());
+        var candidate = Candidate with { Nodes = [..Candidate.Nodes, new("n3","综合推演","theory",["计算并证明集合相等"],["n1"],60,null)],
+            Coverage = [new($"d1/page-1..{pages}","included",["n1","n2"],null),new($"d1/page-{pages-10}..{pages}","included",["n3"],null)] };
+        var parsed = new PlanParser().Parse(JsonSerializer.Serialize(candidate,Wire.Options)); Assert.True(parsed.Ok);
+        var store = new SqlitePlanningStore(root); var draft=(await store.StartAsync(new(Guid.NewGuid(),0,Input))).Value!;
+        var valid=PlanRules.Validate(draft.Id,Input,parsed.Value!,Sources,null,[collection]); Assert.True(valid.Ok,valid.Error?.Message);
+        Assert.Null(CourseMaterials.MissingBindingError(valid.Value!));
+        var saved=await store.SaveProposalAsync(new(Guid.NewGuid(),0,valid.Value!),draft.Id); Assert.True(saved.Ok);
+        Assert.True((await store.ConfirmAsync(new(Guid.NewGuid(),saved.Value!.Revision,new(draft.Id,valid.Value!.Hash,true)))).Ok);
+        var restored=(await new SqlitePlanningStore(root).GetAsync(draft.Id))!;
+        Assert.True(restored.Confirmed); Assert.Equal(valid.Value.Hash,restored.Plan!.Hash);
+        Assert.Equal(pages,restored.Plan.Candidate.Coverage!.Count);
+        Assert.Equal(["n1","n2","n3"],restored.Plan.Candidate.Coverage[^1].NodeKeys);
+        Assert.Equal(3,restored.Plan.Candidate.Nodes.Count);
     }
     private long CountMetadata()
     {

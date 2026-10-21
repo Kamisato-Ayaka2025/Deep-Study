@@ -35,7 +35,9 @@ public static class CourseMaterials
         {
             var entries = Entries(plan, node, collection, index);
             if (entries.Length == 0) continue;
-            var query = node.Title + " " + string.Join(' ', node.Objectives) + " " + string.Join(' ', plan.Candidate.Nodes.Where(n => node.PrerequisiteKeys.Contains(n.Key)).Select(n => n.Title));
+            var query = entries.All(e => e.StartsWith("page-", StringComparison.Ordinal))
+                ? string.Join('\n', node.Objectives.Prepend(node.Title))
+                : node.Title + " " + string.Join(' ', node.Objectives) + " " + string.Join(' ', plan.Candidate.Nodes.Where(n => node.PrerequisiteKeys.Contains(n.Key)).Select(n => n.Title));
             var fragments = indexed is IBoundedCollectionKnowledge bounded
                 ? await bounded.RetrieveFrozenAsync(collection, query, entries, 100000 - used, fetchBudget, ct)
                 : await indexed.RetrieveFrozenAsync(collection, query, entries, 100000 - used, ct);
@@ -53,6 +55,11 @@ public static class CourseMaterials
     }
     public static bool MissingBinding(PlanDocument plan, PlannedNode node) =>
         plan.Collections is { Count: > 0 } && !plan.Candidate.Coverage!.Any(e => e.State == "included" && e.NodeKeys.Contains(node.Key));
+    public static string? MissingBindingError(PlanDocument plan)
+    {
+        var keys=plan.Candidate.Nodes.Where(n=>n.Type=="theory" && MissingBinding(plan,n)).Select(n=>n.Key).ToArray();
+        return keys.Length==0 ? null : "PCOV007：以下理论节点缺少教材页绑定："+string.Join(", ",keys.Take(40))+"。在coverage中把这些key加入实际支持该课的included条目的nodeKeys，同一条目可支持多课；综合复习课同样需要绑定。保留全部节点、类型及已有绑定，不虚构目录条目。";
+    }
 
     // Compatibility selection is derived at request time; never rewrite the confirmed plan/hash.
     public static string[] Entries(PlanDocument plan, PlannedNode node, PlanCollection collection, int index)

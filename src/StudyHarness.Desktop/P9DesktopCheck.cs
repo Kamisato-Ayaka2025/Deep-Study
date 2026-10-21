@@ -82,10 +82,8 @@ internal static class P9DesktopCheck
                 var path = Path.Combine(root, "structure.md"); await File.WriteAllTextAsync(path, "# 定理与证明\n定理：零等于零。\n证明：逐项比较即可。\n# 例题\n例题：1+1。\n解答：2。\n");
                 await workspace.ImportCollectionAsync(HostSelection.FromFilePicker(path));
             }
-            Check(workspace.CollectionStructure.Contains("structure-v1") && workspace.CollectionStructure.Contains("proof"), "semantic-structure-and-relations-visible");
-            main.ChatPanel.Visibility = Visibility.Visible; main.WorkspacePanel.Visibility = Visibility.Visible; main.ImportExpander.IsExpanded = true; main.OcrExpander.IsExpanded = true;
-            foreach (var child in LogicalTreeHelper.GetChildren(main.OcrExpander)) if (child is System.Windows.Controls.StackPanel panel)
-                foreach (var expander in panel.Children.OfType<System.Windows.Controls.Expander>()) expander.IsExpanded = true;
+            Check(workspace.CollectionStructure.Contains("structure-v1") && workspace.CollectionStructure.Contains("proof"), "semantic-structure-and-relations-retained");
+            main.ChatPanel.Visibility = Visibility.Visible; main.WorkspacePanel.Visibility = Visibility.Visible; main.ImportExpander.IsExpanded = true;
             main.MainScroll.ScrollToTop(); await main.Dispatcher.InvokeAsync(main.UpdateLayout); Capture(main, Path.Combine(evidence, restart ? "structure-restart.png" : "structure.png"));
             main.ImportExpander.IsExpanded = false; main.ChatPanel.Visibility = Visibility.Visible; main.DetailsExpander.IsExpanded = true; main.UpdateLayout();
             await planning.RefreshAfterDeletionAsync();
@@ -125,7 +123,14 @@ internal static class P9DesktopCheck
             clarificationProvider.Invalid = true;
             Control<System.Windows.Controls.Button>("RegeneratePlan").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             for (var i = 0; i < 50 && clarificationVm.Busy; i++) await Task.Delay(100);
-            Check(clarificationProvider.Requests.Count == 4 && clarificationVm.CanRetryPlan && !clarificationVm.CanSendPlan, "invalid-plan-stops-after-three-and-enables-retry");
+            Check(clarificationProvider.Requests.Count == 3 && clarificationVm.CanRetryPlan && !clarificationVm.CanSendPlan && clarificationVm.Status.Contains("重复返回"), "repeated-invalid-plan-stops-early-and-enables-retry");
+            var previousError=clarificationVm.Status;
+            await clarificationVm.FormSubmissionAsync();
+            Check(clarificationVm.Status.StartsWith(previousError,StringComparison.Ordinal) && clarificationVm.Status.Contains("请点击下方") && clarificationProvider.Requests.Count==3,"forming-again-explains-retry-and-preserves-error-without-dispatch");
+            main.ChatPanel.DataContext=clarificationVm;
+            await main.Dispatcher.InvokeAsync(main.UpdateLayout,System.Windows.Threading.DispatcherPriority.Render);
+            var sendButton=Descendants(main.ChatPanel).OfType<System.Windows.Controls.Button>().Single(b=>System.Windows.Automation.AutomationProperties.GetAutomationId(b)=="ProposePlan");
+            Check(sendButton.IsEnabled && sendButton.Content?.ToString()=="携带错误信息重试","main-send-button-explicitly-offers-repair");
             Check(clarificationVm.CanOpenClarification, "failed-plan-window-can-reopen");
             clarificationWindow.Close();
             clarificationWindow = new PlanClarificationWindow(clarificationVm); clarificationWindow.Show();
@@ -137,6 +142,7 @@ internal static class P9DesktopCheck
             for (var i = 0; i < 50 && clarificationVm.Busy; i++) await Task.Delay(100);
             Check(clarificationProvider.Requests[^1].PlanRepair is { Candidate: "{\"schemaVersion\":2}" } feedback && feedback.Instructions.Contains("宿主错误"), "retry-click-includes-final-candidate-and-error");
             Check(!clarificationVm.HasClarifications && clarificationVm.Selected?.Draft.Plan is not null, "clarification-window-regenerate-resolves-questions");
+            Check(!sendButton.IsEnabled && sendButton.Content?.ToString()=="发送并拟定计划","successful-plan-resets-main-send-button");
             clarificationVm.AckFrozen = true; Check(clarificationVm.CanConfirm, "clarification-result-can-be-explicitly-confirmed");
             clarificationProvider.Invalid = true;
             await clarificationVm.PrepareAsync(); await clarificationVm.ProposeAsync(true);

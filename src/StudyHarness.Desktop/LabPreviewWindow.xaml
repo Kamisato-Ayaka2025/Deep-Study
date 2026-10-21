@@ -1,16 +1,69 @@
-<Window x:Class="StudyHarness.Desktop.LabPreviewWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StudyHarness.Desktop" Icon="Assets/deep-study.ico" Title="Deep Study · 实践" Width="1350" Height="780" MinWidth="760" MinHeight="600" FontFamily="Microsoft YaHei UI" FontSize="14" Background="#F4F7FB">
- <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="330"/></Grid.ColumnDefinitions><local:TutoringPane x:Name="Tutor" Grid.Column="1" Visibility="Collapsed"/>
- <Grid Margin="24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <StackPanel><TextBlock Text="{Binding Title}" FontSize="19" TextWrapping="Wrap" Margin="0,8"/><Expander Header="课程详情"><TextBlock Text="{Binding Plan}" TextWrapping="Wrap"/></Expander></StackPanel>
-  <Border Grid.Row="1" Background="#FFF0D6" Padding="12" Margin="0,12"><TextBlock x:Name="BoundaryNotice" Text="{Binding Notice}" TextWrapping="Wrap" Foreground="#754500"/></Border>
-  <StackPanel Grid.Row="2"><TextBlock Text="点击生成将向当前配置的 DeepSeek 发送本课定义和固定资料，临时错误最多重试2次；取消不退还已用额度。不会读取外部代码。" TextWrapping="Wrap"/>
-   <WrapPanel Margin="0,8"><Button x:Name="GenerateLab" Content="生成实验材料" IsEnabled="{Binding CanGenerate}" Click="GenerateClick" Padding="12,6"/><Button x:Name="CancelLab" Content="取消生成" IsEnabled="{Binding Busy}" Click="CancelClick" Margin="8,0" Padding="12,6"/><Button x:Name="ExportLab" Content="导出原始材料 ZIP" IsEnabled="{Binding HasMaterial}" Click="ExportClick" Padding="12,6"/></WrapPanel>
-   <TextBlock x:Name="LabStatus" Text="{Binding Status}" TextWrapping="Wrap" Margin="0,4,0,10"/>
-  </StackPanel>
-  <TabControl Grid.Row="3"><TabItem Header="说明与测评方案"><TextBox Text="{Binding Instructions, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="12"/></TabItem>
-   <TabItem Header="源文件与测试文件"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><ListBox ItemsSource="{Binding Files}" SelectedItem="{Binding SelectedFile}" DisplayMemberPath="Path"/><TextBox Grid.Column="1" Text="{Binding SelectedFile.Text, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="12"/></Grid></TabItem>
-   <TabItem Header="用例与预期（非实际结果）"><TextBox Text="{Binding Cases, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="12"/></TabItem>
-  </TabControl>
-  <StackPanel Grid.Row="4" Margin="0,12,0,0"><CheckBox x:Name="SelfTestAck" Content="我已自行按测评方案检查，确认完成本课（软件未验证）" IsChecked="{Binding Acknowledged}" IsEnabled="{Binding CanAttest}"/><Button x:Name="ConfirmLab" Content="确认完成本课" HorizontalAlignment="Left" IsEnabled="{Binding CanConfirm}" Click="ConfirmClick" Padding="12,6" Margin="0,8,0,0"/></StackPanel>
- </Grid>
-</Grid></Window>
+<Window x:Class="StudyHarness.Desktop.LabPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StudyHarness.Desktop"
+        Icon="Assets/deep-study.ico" Title="Deep Study · 实践" Width="1400" Height="860" MinWidth="1000" MinHeight="700"
+        FontFamily="{StaticResource DsFont}" FontSize="13" Background="{StaticResource DsPageBrush}" WindowStartupLocation="CenterOwner" UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <Grid Margin="22,18,22,16">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="350"/></Grid.ColumnDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+
+        <StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="{Binding Title}" Style="{StaticResource DsH1}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Border Style="{StaticResource DsChip}"><TextBlock Text="实践课" Style="{StaticResource DsCaption}"/></Border>
+                        <Border Style="{StaticResource DsChip}" Margin="8,0,0,0"><TextBlock Text="软件不编译或运行代码" Style="{StaticResource DsCaption}"/></Border>
+                    </StackPanel>
+                </StackPanel>
+                <WrapPanel Grid.Column="1" VerticalAlignment="Center">
+                    <Button x:Name="GenerateLab" Content="生成实验材料" IsEnabled="{Binding CanGenerate}" Click="GenerateClick" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"/>
+                    <Button x:Name="CancelLab" Content="取消生成" IsEnabled="{Binding Busy}" Click="CancelClick" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"/>
+                    <Button x:Name="ExportLab" Content="导出原始材料 ZIP" IsEnabled="{Binding HasMaterial}" Click="ExportClick" Style="{StaticResource SecondaryButton}"/>
+                </WrapPanel>
+            </Grid>
+            <Expander Header="课程详情" Margin="0,14,0,0">
+                <TextBlock Text="{Binding Plan}" Style="{StaticResource DsSmall}"/>
+            </Expander>
+        </StackPanel>
+
+        <Border Grid.Row="1" Style="{StaticResource DsHintPanel}" Background="{StaticResource DsWarningSoftBrush}" BorderBrush="#F5D9A8" Margin="0,12,0,12" Padding="14,11">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE7BA;" Style="{StaticResource DsIconGlyph}" FontSize="13" Foreground="{StaticResource DsWarningBrush}"/>
+                <TextBlock x:Name="BoundaryNotice" Text="{Binding Notice}" Style="{StaticResource DsSmall}" Foreground="#7A4A06" Margin="9,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <TextBlock Text="点击生成将向当前配置的 DeepSeek 发送本课定义和固定资料，临时错误最多重试 2 次；取消不退还已用额度。不会读取外部代码。" Style="{StaticResource DsCaption}" VerticalAlignment="Center"/>
+            <TextBlock x:Name="LabStatus" Grid.Column="1" Text="{Binding Status}" Style="{StaticResource DsSmall}" Margin="18,0,0,0" MaxWidth="380" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" ToolTip="{Binding Status}"/>
+        </Grid>
+
+        <TabControl Grid.Row="3">
+            <TabItem Header="说明与测评方案">
+                <TextBox Text="{Binding Instructions, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="16" Background="Transparent" BorderThickness="0"/>
+            </TabItem>
+            <TabItem Header="源文件与测试文件">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <ListBox ItemsSource="{Binding Files}" SelectedItem="{Binding SelectedFile}" DisplayMemberPath="Path" Margin="8" Background="{StaticResource DsSurfaceAltBrush}"/>
+                    <TextBox Grid.Column="1" Text="{Binding SelectedFile.Text, Mode=OneWay}" IsReadOnly="True" FontFamily="{StaticResource DsMonoFont}" FontSize="12" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="14" Background="Transparent" BorderThickness="0"/>
+                </Grid>
+            </TabItem>
+            <TabItem Header="用例与预期（非实际结果）">
+                <TextBox Text="{Binding Cases, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="16" Background="Transparent" BorderThickness="0"/>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="4" Style="{StaticResource DsCardFlat}" Background="{StaticResource DsSurfaceAltBrush}" Margin="0,14,0,0" Padding="18,14">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <CheckBox x:Name="SelfTestAck" Content="我已自行按测评方案检查，确认完成本课（软件未验证）" IsChecked="{Binding Acknowledged}" IsEnabled="{Binding CanAttest}" VerticalAlignment="Center"/>
+                <Button x:Name="ConfirmLab" Grid.Column="1" Content="确认完成本课" IsEnabled="{Binding CanConfirm}" Click="ConfirmClick" Style="{StaticResource PrimaryButton}"/>
+            </Grid>
+        </Border>
+
+        <local:TutoringPane x:Name="Tutor" Grid.Column="2" Grid.RowSpan="5" Visibility="Collapsed"/>
+    </Grid>
+</Window>

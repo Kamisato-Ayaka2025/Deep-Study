@@ -1,0 +1,157 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Deep Study visual language: calm blue/white, generous whitespace, soft depth. -->
+    <FontFamily x:Key="DsFont">Microsoft YaHei UI</FontFamily>
+    <FontFamily x:Key="DsMonoFont">Cascadia Mono, Consolas, Microsoft YaHei UI</FontFamily>
+    <FontFamily x:Key="DsIconFont">Segoe MDL2 Assets</FontFamily>
+
+    <SolidColorBrush x:Key="DsPrimaryBrush" Color="#4D6BFE"/>
+    <SolidColorBrush x:Key="DsPrimaryHoverBrush" Color="#3D5AF0"/>
+    <SolidColorBrush x:Key="DsPrimaryPressedBrush" Color="#2F4ADE"/>
+    <SolidColorBrush x:Key="DsPrimarySoftBrush" Color="#EEF2FF"/>
+    <SolidColorBrush x:Key="DsPrimarySoft2Brush" Color="#E3E9FF"/>
+    <SolidColorBrush x:Key="DsPrimaryLineBrush" Color="#D6DEFF"/>
+    <SolidColorBrush x:Key="DsPageBrush" Color="#F5F7FB"/>
+    <SolidColorBrush x:Key="DsSurfaceBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="DsSurfaceAltBrush" Color="#F8FAFF"/>
+    <SolidColorBrush x:Key="DsSurfaceMutedBrush" Color="#F1F4FA"/>
+    <SolidColorBrush x:Key="DsSidebarBrush" Color="#FBFCFE"/>
+    <SolidColorBrush x:Key="DsBorderBrush" Color="#E6EBF5"/>
+    <SolidColorBrush x:Key="DsBorderStrongBrush" Color="#D5DEED"/>
+    <SolidColorBrush x:Key="DsInkBrush" Color="#101828"/>
+    <SolidColorBrush x:Key="DsTitleBrush" Color="#0B1220"/>
+    <SolidColorBrush x:Key="DsBodyBrush" Color="#344054"/>
+    <SolidColorBrush x:Key="DsMutedBrush" Color="#667085"/>
+    <SolidColorBrush x:Key="DsFaintBrush" Color="#98A2B3"/>
+    <SolidColorBrush x:Key="DsSuccessBrush" Color="#12B76A"/>
+    <SolidColorBrush x:Key="DsSuccessSoftBrush" Color="#E8F8F0"/>
+    <SolidColorBrush x:Key="DsWarningBrush" Color="#F79009"/>
+    <SolidColorBrush x:Key="DsWarningSoftBrush" Color="#FFF5E6"/>
+    <SolidColorBrush x:Key="DsDangerBrush" Color="#F04438"/>
+    <SolidColorBrush x:Key="DsDangerSoftBrush" Color="#FEEDEC"/>
+    <SolidColorBrush x:Key="DsLabBrush" Color="#7C5CFF"/>
+    <SolidColorBrush x:Key="DsLabSoftBrush" Color="#F2EEFF"/>
+    <SolidColorBrush x:Key="DsScrollThumbBrush" Color="#CBD8EE"/>
+    <SolidColorBrush x:Key="DsScrollThumbHoverBrush" Color="#AFC2E4"/>
+
+    <LinearGradientBrush x:Key="DsHeroGradient" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#EDF2FF" Offset="0"/>
+        <GradientStop Color="#F7FAFF" Offset="0.55"/>
+        <GradientStop Color="#FFFFFF" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="DsLineGradient" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#BFCDFF" Offset="0"/>
+        <GradientStop Color="#DCE5FF" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="DsPrimaryGradient" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#5873FF" Offset="0"/>
+        <GradientStop Color="#4D6BFE" Offset="1"/>
+    </LinearGradientBrush>
+
+    <DropShadowEffect x:Key="DsCardShadow" BlurRadius="24" ShadowDepth="2" Direction="270" Opacity="0.07" Color="#1D2939"/>
+    <DropShadowEffect x:Key="DsCardShadowHover" BlurRadius="28" ShadowDepth="5" Direction="270" Opacity="0.13" Color="#1D2939"/>
+    <DropShadowEffect x:Key="DsSidebarShadow" BlurRadius="30" ShadowDepth="3" Direction="0" Opacity="0.05" Color="#1D2939"/>
+
+    <!-- Typography -->
+    <Style x:Key="DsDisplay" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="30"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource DsTitleBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="DsH1" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="23"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource DsTitleBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="DsH2" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="17"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource DsInkBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="DsH3" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="14.5"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource DsInkBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="DsBody" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13.5"/>
+        <Setter Property="Foreground" Value="{StaticResource DsBodyBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="LineHeight" Value="22"/>
+    </Style>
+    <Style x:Key="DsSmall" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="{StaticResource DsMutedBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="LineHeight" Value="19"/>
+    </Style>
+    <Style x:Key="DsCaption" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="Foreground" Value="{StaticResource DsFaintBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="DsLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource DsBodyBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,6"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="DsSectionLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource DsFaintBrush}"/>
+        <Setter Property="TextWrapping" Value="NoWrap"/>
+    </Style>
+    <Style x:Key="DsMono" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource DsMonoFont}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="{StaticResource DsBodyBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="DsIconGlyph" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource DsIconFont}"/>
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextWrapping" Value="NoWrap"/>
+    </Style>
+
+    <!-- Surfaces -->
+    <Style x:Key="DsCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DsSurfaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="24"/>
+        <Setter Property="Effect" Value="{StaticResource DsCardShadow}"/>
+    </Style>
+    <Style x:Key="DsCardFlat" TargetType="Border" BasedOn="{StaticResource DsCard}">
+        <Setter Property="Effect" Value="{x:Null}"/>
+    </Style>
+    <Style x:Key="DsSoftPanel" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DsSurfaceAltBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DsBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="14,12"/>
+    </Style>
+    <Style x:Key="DsHintPanel" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DsPrimarySoftBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DsPrimaryLineBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="14,12"/>
+    </Style>
+    <Style x:Key="DsChip" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DsSurfaceMutedBrush}"/>
+        <Setter Property="CornerRadius" Value="20"/>
+        <Setter Property="Padding" Value="9,3"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="DsChipPrimary" TargetType="Border" BasedOn="{StaticResource DsChip}">
+        <Setter Property="Background" Value="{StaticResource DsPrimarySoftBrush}"/>
+    </Style>
+</ResourceDictionary>

@@ -3,6 +3,12 @@ using StudyHarness.Contracts;
 
 namespace StudyHarness.Application;
 
+public sealed class ContextBudgetExceededException(int input, int output, int margin, int context, bool verified) : ArgumentException("Context budget exceeded")
+{
+    public string UserMessage(string model) => $"模型 {model}：输入保守估算 {input:N0}（按UTF-8字节计，非实际Token），输出预留 {output:N0} Token，安全余量 {margin:N0} Token，上下文 {context:N0} Token。" +
+        (verified ? "本课完整资料超过额度，需进一步按目标分课。" : "当前模型能力未取得，正使用保守额度；请在设置中核对模型和API密钥后重试。");
+}
+
 public static class AdaptiveBudgetPolicy
 {
     public static ModelCapabilities Conservative(string model, DateTimeOffset now) => new(model, 32768, 4096, false, now, false);
@@ -19,12 +25,15 @@ public static class AdaptiveBudgetPolicy
         string serializedTextRequest, bool plan, DateTimeOffset now, bool reasoningLesson = false)
     {
         ArgumentNullException.ThrowIfNull(serializedTextRequest);
-        var effective = IsFresh(capability, model, now) ? capability : Conservative(model, now);
+        var verified = IsFresh(capability, model, now);
+        var effective = verified ? capability : Conservative(model, now);
+        // User-approved lesson fallback only. Planning/OCR and verified model limits stay unchanged.
+        if (!verified && reasoningLesson) effective = effective with { ContextWindow = 65536 };
         var input = Encoding.UTF8.GetByteCount(serializedTextRequest);
         var reserve = Math.Min(plan || reasoningLesson ? 32768 : 16384, effective.MaxOutputTokens);
         const int margin = 8192;
         if (input > 393216 || (long)input + reserve + margin > effective.ContextWindow)
-            throw new ArgumentException("Context budget exceeded; retrieve a smaller explicit scope before dispatch.", nameof(serializedTextRequest));
+            throw new ContextBudgetExceededException(input, reserve, margin, effective.ContextWindow, IsFresh(capability, model, now));
         return new(input, reserve, margin, 4 * 1024 * 1024, 3, 2, plan ? 600 : 300, plan ? 900 : 600);
     }
 }

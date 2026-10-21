@@ -3,6 +3,12 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        if (args.Contains("--book-plan-replay")) return BookPlanReliabilityHarness.Replay(args);
+        if (args.Contains("--book-plan-reliability")) return BookPlanReliabilityHarness.Run(args).GetAwaiter().GetResult();
+        if (args.Contains("--p14-lesson-preview")) return P14Harness.LessonPreview(args).GetAwaiter().GetResult();
+        if (args.Contains("--p14-scan")) return P14Harness.Run(args).GetAwaiter().GetResult();
+        if (args.Contains("--p14-plan")) return P14Harness.Plan(args).GetAwaiter().GetResult();
+        if (args.Contains("--p14-inspect")) return P14Harness.Inspect(args).GetAwaiter().GetResult();
         if (args.Contains("--p9-source-audit")) return P9Harness.AuditSource(args);
         if (args.Contains("--p9-plan-audit")) return P9Harness.AuditPlanReply(args);
         if (args.Contains("--p9-fetch-audit")) return P9Harness.AuditFetch(args).GetAwaiter().GetResult();

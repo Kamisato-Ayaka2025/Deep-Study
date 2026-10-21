@@ -14,6 +14,7 @@ public partial class App : System.Windows.Application
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StudyHarness");
         try
         {
+            root = Path.GetFullPath(root);
             Directory.CreateDirectory(root);
             Directory.CreateDirectory(Path.Combine(root, "knowledge"));
             var mutexName = "Local\\StudyHarness-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(root).ToUpperInvariant())));
@@ -27,7 +28,8 @@ public partial class App : System.Windows.Application
             var vm = new ShellViewModel(service, new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient())), new SafeLog(Path.Combine(root, "logs", "operations.jsonl")), Path.GetFullPath(root));
             var workspace = new WorkspaceViewModel(new WorkspaceService(knowledge, service,
                 new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient()))),
-                new OcrService(knowledge, service, capabilities, new DeepSeekOcrProvider(store, DeepSeekProvider.CreateClient())));
+                new OcrService(knowledge, service, capabilities, new DeepSeekOcrProvider(store, DeepSeekProvider.CreateClient())),
+                new AutomaticPdfScanService(knowledge, service, capabilities, new DeepSeekOcrProvider(store, DeepSeekProvider.CreateClient())));
             var plans = new SqlitePlanningStore(root);
             var learning = new SqliteLearningStore(root, plans);
             await learning.RecoverAsync();
@@ -49,6 +51,11 @@ public partial class App : System.Windows.Application
                 new TutoringFiles(), new SqliteSubjectLifecycle(root));
             MainWindow.Show();
             await ((MainWindow)MainWindow).Ready.Task;
+            if (e.Args.Contains("--p14-selfcheck"))
+            {
+                var evidence = e.Args[Array.IndexOf(e.Args,"--evidence")+1];
+                await P14DesktopCheck.RunAsync(root,evidence); return;
+            }
             if (e.Args.Contains("--p12-selfcheck"))
             {
                 var index = Array.IndexOf(e.Args, "--evidence");
@@ -121,8 +128,12 @@ public partial class App : System.Windows.Application
                 await P4DesktopCheck.RunAsync(generation, root, e.Args[index + 1], e.Args.Contains("--restart-check"));
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            if (e.Args.Contains("--p14-selfcheck") && File.Exists(Path.Combine(root,"p14-synthetic.marker")))
+            {
+                File.WriteAllText(Path.Combine(root,"startup-failure.txt"),ex.ToString()); Shutdown(1); return;
+            }
             // Never display exception text, which can contain file paths or secret values.
             MessageBox.Show("IO_FAILURE：无法打开本地数据。请检查数据目录权限或数据库版本。未继续写入，请保留原数据后重试。",
                 "Study Harness 启动失败", MessageBoxButton.OK, MessageBoxImage.Error);

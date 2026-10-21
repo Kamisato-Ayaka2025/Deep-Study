@@ -116,7 +116,8 @@ public sealed class GenerationService(IPlanningStore planning, ILearningStore le
             var protocol = sources.Count == 0 ? "theory-v4" : "theory-v3";
             var snapshot = new[] { new ModelSource(adaptive ? protocol : protocol + "-short", sources.Count == 0 ? 4 : 3, ModelSourceKind.UserText, text) }.Concat(materials);
             try { reviews.Add(node.Key, adaptive ? await egress.PrepareAdaptiveAsync(config.Model, snapshot, false, ct) : egress.Prepare(config.Model, snapshot, 8192, true)); }
-            catch (ArgumentException) { return Result<TheoryReview>.Fail(ErrorCode.VALIDATION_ERROR, "本课资料超过当前模型预算；请刷新能力或缩小明确范围。"); }
+            catch (ContextBudgetExceededException e) { return Result<TheoryReview>.Fail(ErrorCode.VALIDATION_ERROR, e.UserMessage(config.Model)); }
+            catch (ArgumentException) { return Result<TheoryReview>.Fail(ErrorCode.VALIDATION_ERROR, "本课请求的资料数量或单段长度超过限制；未发送，请检查来源切分。"); }
         }
         if (reviews.Count == 0) return Result<TheoryReview>.Fail(ErrorCode.VALIDATION_ERROR, "没有可授权的理论课程。");
         return Result<TheoryReview>.Success(new(subjectId, draft.Plan.Hash, config.Model, config.ConsentMode, reviews, allSources.Distinct().ToArray()));

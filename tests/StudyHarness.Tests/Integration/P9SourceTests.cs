@@ -224,7 +224,30 @@ public sealed class P9SourceTests(Xunit.Abstractions.ITestOutputHelper output) :
         var evidence = await store.RetrieveFrozenAsync(binding, "Proof E03", ["page-1"], 10000);
         Assert.Contains(evidence, e => e.Reference.Locator.Page == 2 && e.Text.Contains("E04"));
         Assert.Contains(evidence, e => e.Text.Contains("Theorem E02"));
+        var chapterEvidence = await store.RetrieveFrozenAsync(binding, "Proof E03", ["page-1", "page-2"], 10000);
+        Assert.Contains(chapterEvidence, e => e.Text.Contains("Theorem E02"));
+        Assert.Contains(chapterEvidence, e => e.Text.Contains("E04"));
         await Assert.ThrowsAsync<InvalidDataException>(() => store.RetrieveFrozenAsync(binding, "Proof E03", ["page-1"], 20));
+    }
+    [Fact]
+    public async Task TextPdf_ChapterBindingRetrievesObjectivesRatherThanEveryPage()
+    {
+        var (store, library) = await Setup(); var path = Path.Combine(root, "chapter.pdf");
+        var pdf = new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
+        var font = pdf.AddStandard14Font(UglyToad.PdfPig.Fonts.Standard14Fonts.Standard14Font.Helvetica);
+        for (var i = 1; i <= 30; i++)
+            pdf.AddPage(400, 500).AddText(i == 4 ? "Socket interface connects applications to transport." :
+                i == 19 ? "Protocol defines message order and format." : $"Unrelated topic number {i} about satellite astronomy.",
+                10, new UglyToad.PdfPig.Core.PdfPoint(20, 420), font);
+        await File.WriteAllBytesAsync(path, pdf.Build());
+        var snapshot = (await store.ImportCollectionAsync(HostSelection.FromFilePicker(path), library)).Value!;
+        var binding = new PlanCollection(library, snapshot.Manifest, snapshot.References, snapshot.Structure);
+        var selected = await store.RetrieveFrozenAsync(binding, "Socket interface\nProtocol message format", snapshot.Manifest.Entries.Select(e => e.Key).ToArray(), 10000);
+        Assert.Contains(selected, s => s.Text.Contains("Socket interface"));
+        Assert.Contains(selected, s => s.Text.Contains("Protocol defines"));
+        Assert.DoesNotContain(selected, s => s.Text.Contains("satellite astronomy"));
+        Assert.All(selected, s => Assert.Contains(s.Reference, snapshot.References));
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.RetrieveFrozenAsync(binding, "Socket interface", snapshot.Manifest.Entries.Select(e => e.Key).ToArray(), 10));
     }
     private sealed class CountedWeb : IWebSources
     {

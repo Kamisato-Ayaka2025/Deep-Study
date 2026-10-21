@@ -8,13 +8,108 @@ using StudyHarness.Contracts;
 namespace StudyHarness.Desktop;
 public sealed record CollectionChoice(CollectionSnapshot Snapshot)
 { public string Label => $"{Snapshot.Collection.Label} · 正文{Snapshot.Collection.ReadyCount}/{Snapshot.Collection.EntryCount}"; }
-public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr = null) : INotifyPropertyChanged
+public sealed record MaterialChoice(string Label, IReadOnlyList<SourceRef> References, Guid? PendingId = null, Guid? CollectionId = null)
+{ public bool NeedsScan => PendingId is not null; }
+public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr = null, AutomaticPdfScanService? automaticScan = null) : INotifyPropertyChanged
 {
     private OcrReview? ocrReview;
     private CollectionChoice? selectedCollection;
     private string ocrPages = "", ocrPreview = "选择扫描教材和页序，先预览本批外发范围。";
     public ObservableCollection<CollectionChoice> Collections { get; } = [];
-    public CollectionChoice? SelectedCollection { get => selectedCollection; set { selectedCollection = value; ocrReview = null; OcrPreview = "选择页范围后重新预览。"; Notify(); Notify(nameof(CollectionStructure)); } }
+    public ObservableCollection<Guid> PendingCollections { get; } = [];
+    private static bool Belongs(CollectionSnapshot snapshot, SourceRef reference) => snapshot.References.Any(r => r.LibraryId == reference.LibraryId && r.NodeId == reference.NodeId);
+    public IReadOnlyList<MaterialChoice> Materials => References.GroupBy(r => (r.LibraryId, r.Locator.SourceLabel))
+        .Where(g => !Collections.Any(c => PendingCollections.Contains(c.Snapshot.Collection.Id) && g.Any(r => Belongs(c.Snapshot,r))))
+        .Select(g => new MaterialChoice(g.Key.SourceLabel, g.ToArray(), CollectionId: Collections.FirstOrDefault(c => c.Snapshot.Collection.SourceKind == "pdf" && g.Any(r => Belongs(c.Snapshot,r)))?.Snapshot.Collection.Id))
+        .Concat(PendingCollections.Select(id => new MaterialChoice(
+            (Collections.FirstOrDefault(c => c.Snapshot.Collection.Id == id)?.Label ?? "待识别教材") + " · 待完成扫描", References.Where(r => Collections.Any(c => c.Snapshot.Collection.Id == id && Belongs(c.Snapshot,r))).ToArray(), id, id))).ToArray();
+    private int scanCompleted, scanTotal;
+    public int ScanCompleted => scanCompleted;
+    public int ScanTotal => scanTotal;
+    public double ScanPercent => scanTotal == 0 ? 0 : 100.0 * scanCompleted / scanTotal;
+    public string ScanProgressText => $"已处理 {scanCompleted} / {scanTotal} 页（{ScanPercent:0.0}%）";
+    private void SetScanProgress(int completed, int total)
+    {
+        scanCompleted = completed; scanTotal = total;
+        Notify(nameof(ScanCompleted)); Notify(nameof(ScanTotal)); Notify(nameof(ScanPercent)); Notify(nameof(ScanProgressText));
+    }
+    public async Task DeleteMaterialAsync(MaterialChoice material)
+    {
+        if (operationCompletion is { } active) { Cancel(); await active.Task; }
+        await Run(async ct =>
+        {
+        var snapshot=Collections.FirstOrDefault(c=>c.Snapshot.Collection.Id==material.CollectionId)?.Snapshot;
+        if (snapshot?.Collection.SourceKind == "pdf" && material.CollectionId is { } id && library is not null && service.Knowledge is IAutomaticPdfKnowledge pdf)
+        {
+            var references=References.Where(r=>Belongs(snapshot,r)).Concat(material.References).Distinct().ToArray();
+            await pdf.DeletePdfAsync(library.Id,id,ct);
+            foreach (var reference in references) References.Remove(reference);
+            PendingCollections.Remove(id); SelectedCollection = null;
+            await LoadCollections(ct); RefreshMaterials();
+            Status = "资料及其扫描缓存已删除，原PDF与已生成课程正文保留。";
+        }
+        else
+        {
+            foreach (var reference in material.References) References.Remove(reference);
+            if(material.PendingId is {} pending) PendingCollections.Remove(pending);
+            RefreshMaterials(); Status = "资料已从当前计划移除。";
+        }
+        });
+    }
+    public Task ContinueScanAsync() => Run(ScanCoreAsync);
+    public Task ContinueMaterialScanAsync(MaterialChoice material)
+    {
+        if (Busy) return Task.CompletedTask;
+        SelectedCollection = Collections.FirstOrDefault(c => c.Snapshot.Collection.Id == material.CollectionId);
+        return ContinueScanAsync();
+    }
+    private async Task ScanCoreAsync(CancellationToken ct)
+    {
+        if (library is null || SelectedCollection is not { } selected || selected.Snapshot.Collection.SourceKind != "pdf" || automaticScan is null) { Status = "请选择PDF教材后继续扫描。"; return; }
+        var id = selected.Snapshot.Collection.Id;
+        var previousRefs = References.Where(r => Belongs(selected.Snapshot,r)).ToArray();
+        if (selected.Snapshot.Collection.ReadyCount < selected.Snapshot.Collection.EntryCount && !PendingCollections.Contains(id)) PendingCollections.Add(id);
+        Status = "自动扫描中，每20页一批；可取消，已完成页会保留。";
+        string outcome;
+        try
+        {
+            var progress = new Progress<PdfScanProgress>(p => { if (Busy && !ct.IsCancellationRequested) { SetScanProgress(p.Completed,p.Total); Status = $"第{p.Batch}/{p.Batches}批 · {p.Message}"; } });
+            var result = await Task.Run(() => automaticScan.RunAsync(library.Id,id,true,progress,ct),ct);
+            outcome = result.Ok ? "全书扫描完成，可形成发送内容。识别文字及图表仍需复核。" : "扫描已停止，进度已保存：" + result.Error!.Message;
+        }
+        catch (OperationCanceledException) { outcome = "扫描已暂停，已完成页已保存；点击继续扫描可从中断处继续。"; }
+        finally
+        {
+            await LoadCollections(CancellationToken.None);
+            SelectedCollection = Collections.FirstOrDefault(c => c.Snapshot.Collection.Id == id);
+            foreach (var reference in previousRefs) References.Remove(reference);
+            if (SelectedCollection is { } current)
+            {
+                if (current.Snapshot.References.Count > 0) UseCollection();
+                if (current.Snapshot.Collection.ReadyCount == current.Snapshot.Collection.EntryCount) PendingCollections.Remove(id);
+            }
+            RefreshMaterials();
+        }
+        Status = outcome;
+    }
+    public void RefreshMaterials() => Notify(nameof(Materials));
+    public void RemoveMaterial(MaterialChoice material)
+    {
+        if (Busy) return;
+        foreach (var reference in material.References) References.Remove(reference);
+        if (material.PendingId is { } id) PendingCollections.Remove(id);
+        if (SelectedCollection is { } selected && (selected.Snapshot.Collection.Id == material.PendingId ||
+            selected.Snapshot.References.Any(material.References.Contains))) SelectedCollection = null;
+        ocrReview = null; RefreshMaterials();
+        Status = "已从当前计划移除资料，原文件与已有课程保留。请重新形成发送内容。";
+    }
+    public void SuggestOcrPages()
+    {
+        OcrPages = string.Join(",", SelectedCollection?.Snapshot.Manifest.Entries
+            .Where(e => e.QualityFlags.Contains("ocrRequired") && int.TryParse(e.Locator, out _))
+            .Take(20).Select(e => e.Locator) ?? []);
+    }
+    public CollectionChoice? SelectedCollection { get => selectedCollection; set { selectedCollection = value; ocrReview = null; OcrPreview = "选择页范围后重新预览。"; SetScanProgress(value?.Snapshot.Collection.ReadyCount ?? 0,value?.Snapshot.Collection.EntryCount ?? 0); Notify(); Notify(nameof(CollectionStructure)); } }
     public string CollectionStructure => SelectedCollection?.Snapshot.Structure is { } index
         ? $"索引{index.IndexVersion} / 切分{index.ChunkerVersion}；源hash={index.SourceHash}\n" + string.Join("\n", index.Nodes.Select(n => $"{n.Title} · {n.Confidence} · {string.Join(",", n.Spans.Select(s => s.EntryKey + ":" + s.Start + "-" + s.End))}")) + "\n语义单元：\n" + string.Join("\n", index.Units.Select(u => $"{u.Kind} · {u.Id} · 父={u.ParentUnitId} · 续接={string.Join(",", u.ContinuationIds)}"))
         : "尚无结构索引；旧引用继续可用。重新导入同一教材可使用缓存重建，不重新OCR。";
@@ -32,8 +127,17 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
         var prior = SelectedCollection?.Snapshot.Collection.Id;
         Collections.Clear();
         if (library is not null && service.Knowledge is ICollectionKnowledge collections)
-            foreach (var item in await collections.CollectionsAsync(library.Id, ct)) Collections.Add(new(item));
+        {
+            var snapshots = await Task.Run(() => collections.CollectionsAsync(library.Id, ct), ct);
+            if (service.Knowledge is IAutomaticPdfKnowledge pdf)
+            {
+                foreach (var item in snapshots.Where(s => s.Collection.SourceKind == "pdf")) await pdf.CommitStagedOcrAsync(library.Id,item.Collection.Id,ct);
+                snapshots = await Task.Run(() => collections.CollectionsAsync(library.Id, ct), ct);
+            }
+            foreach (var item in snapshots) Collections.Add(new(item));
+        }
         SelectedCollection = Collections.FirstOrDefault(c => c.Snapshot.Collection.Id == prior) ?? Collections.FirstOrDefault();
+        RefreshMaterials();
     }
     public Task PrepareOcrAsync() => Run(async ct =>
     {
@@ -56,9 +160,18 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
     public Task RunOcrAsync() => Run(async ct =>
     {
         if (ocrReview is null || ocr is null) { Status = "请先预览当前页范围。"; return; }
+        var previous = SelectedCollection?.Snapshot;
+        var selectedReferences = References.Where(r => previous?.References.Contains(r) == true).ToArray();
         var review = ocrReview; ocrReview = null;
         var result = await ocr.RunAsync(review, true, new Progress<string>(s => { if (Busy) Status = s; }), ct);
         await LoadCollections(ct); await SearchCore(ct);
+        if (SelectedCollection is { } selected && (PendingCollections.Contains(selected.Snapshot.Collection.Id) || selectedReferences.Length > 0))
+        {
+            foreach (var reference in selectedReferences) References.Remove(reference);
+            UseCollection();
+            if (selected.Snapshot.References.Count > 0) PendingCollections.Remove(selected.Snapshot.Collection.Id);
+        }
+        SuggestOcrPages(); RefreshMaterials();
         Status = result.Ok ? $"本批{result.Value}页已缓存，识别文字待人工复核；没有自动识别其他页。" : result.Error!.Message;
     });
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -66,6 +179,7 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
     private string query = "", prompt = "请用一句话说明什么是变量。", preview = "请先预览外发范围。", reply = "", status = "资料与模型工作台；课程请从课程图打开。";
     private bool busy;
     private CancellationTokenSource? cancellation;
+    private TaskCompletionSource? operationCompletion;
     private string? reviewedPrompt;
     private SourceRef[] reviewedReferences = [];
     private IReadOnlyList<SourceRef> importedReferences = [];
@@ -74,6 +188,7 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
     public void RestoreReferences(IReadOnlyList<SourceRef> references)
     {
         References.Clear(); foreach (var reference in references) References.Add(reference);
+        RefreshMaterials();
     }
     public KnowledgeFragment? SelectedFragment { get; set; }
     public SourceRef? SelectedReference { get; set; }
@@ -96,6 +211,7 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
     public Task ImportAsync(HostSelection selection) => Run(async ct =>
     {
         if (library is null) { Status = "请先选择资料库。"; return; }
+        Status = "正在自动识别文件类型、整理目录并提取正文，请稍候。";
         var result = await service.Knowledge.ImportAsync(new(Guid.NewGuid(), 0, selection), library.Id, ct);
         importedReferences = result.Ok ? result.Value!.References ?? [] : [];
         if (selection.IsPlanImport)
@@ -104,9 +220,27 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
                 if (!References.Contains(reference)) References.Add(reference);
             await LoadCollections(ct);
             SelectedCollection = Collections.LastOrDefault(c => result.Value?.Files.Any(f => f.SourceLabel == c.Snapshot.Collection.Label) == true) ?? SelectedCollection;
+            foreach (var item in Collections.Where(c => result.Value?.Files.Any(f => f.Ok && f.SourceLabel == c.Snapshot.Collection.Label) == true))
+            {
+                if (item.Snapshot.References.Count == 0 && !PendingCollections.Contains(item.Snapshot.Collection.Id)) PendingCollections.Add(item.Snapshot.Collection.Id);
+                else if (item.Snapshot.References.Count > 0) PendingCollections.Remove(item.Snapshot.Collection.Id);
+            }
+            SuggestOcrPages(); RefreshMaterials();
         }
-        Status = result.Ok ? string.Join("\n", result.Value!.Files.Select(f => $"{f.SourceLabel}：{(f.Ok ? $"新增 {f.Added} / 更新 {f.Updated} / 未变 {f.Unchanged}" : f.Error)}")) : $"{result.Error!.Code}：{result.Error.Message}";
         await SearchCore(ct);
+        Status = result.Ok ? string.Join("\n", result.Value!.Files.Select(f => $"{f.SourceLabel}：{(f.Ok ? $"已导入，正文 {f.Added + f.Updated + f.Unchanged} 项。{f.Error}" : f.Error)}")) : $"{result.Error!.Code}：{result.Error.Message}";
+        if (automaticScan is null && OcrPages.Length > 0) Status += "\n检测到扫描页，已自动建议下一批页序。请核对范围并授权识别；不会自动上传全书。";
+        if (automaticScan is not null && result.Ok)
+        {
+            if (!selection.IsPlanImport) await LoadCollections(ct);
+            var ids = Collections.Where(c => c.Snapshot.Collection.SourceKind == "pdf" && result.Value!.Files.Any(f => f.Ok && f.SourceLabel == c.Snapshot.Collection.Label)).Select(c => c.Snapshot.Collection.Id).ToArray();
+            foreach (var id in ids)
+            {
+                ct.ThrowIfCancellationRequested(); SelectedCollection = Collections.Single(c => c.Snapshot.Collection.Id == id);
+                await ScanCoreAsync(ct);
+                if (ct.IsCancellationRequested || SelectedCollection!.Snapshot.Collection.ReadyCount < SelectedCollection.Snapshot.Collection.EntryCount) break;
+            }
+        }
     });
     public Task ImportCollectionAsync(HostSelection selection) => Run(async ct =>
     {
@@ -116,8 +250,11 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
         if (!result.Ok) { Status = result.Error!.Message; return; }
         importedReferences = result.Value!.References;
         await LoadCollections(ct);
+        SelectedCollection = Collections.Single(c => c.Snapshot.Collection.Id == result.Value.Collection.Id);
+        SuggestOcrPages();
         Status = $"教材已保存：共{result.Value.Collection.EntryCount}项，{result.Value.Collection.ReadyCount}项有可检索文字；其余需识别或复核。目录不代表正文已读。";
         await SearchCore(ct);
+        if (automaticScan is not null && result.Value.Collection.SourceKind == "pdf") await ScanCoreAsync(ct);
     });
     public void UseImportedReferences()
     {
@@ -166,11 +303,11 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
     public void Cancel() => cancellation?.Cancel();
     private async Task Run(Func<CancellationToken, Task> action)
     {
-        if (Busy) return; Busy = true; cancellation = new();
+        if (Busy) return; Busy = true; cancellation = new(); operationCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         try { await action(cancellation.Token); }
         catch (OperationCanceledException) { Status = "操作已取消。"; }
         catch (Exception) { Status = "IO_FAILURE：操作未完成，请检查资料库、输入长度或本地设置。"; }
-        finally { cancellation.Dispose(); cancellation = null; Busy = false; }
+        finally { cancellation.Dispose(); cancellation = null; Busy = false; var completed=operationCompletion; operationCompletion=null; completed?.TrySetResult(); }
     }
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
 }

@@ -7,9 +7,17 @@ namespace StudyHarness.Infrastructure;
 
 // Separate recovery journal: even incomplete/invalid form input must survive a crash.
 // Each edit commits atomically; authorization and credentials are never journalled.
-public sealed class SqlitePlanningSessionStore(string root) : IPlanningSessionStore
+public sealed class SqlitePlanningSessionStore : IPlanningSessionStore
 {
-    private readonly string path = Path.Combine(Path.GetFullPath(root), "planning-session.db");
+    private readonly string root;
+    private readonly string path;
+    public SqlitePlanningSessionStore(string root)
+    {
+        // The trusted data-root configuration may contain launcher-relative segments.
+        // Pin and open the same canonical directory; reparse-point checks remain in place.
+        this.root = Path.GetFullPath(root);
+        path = Path.Combine(this.root, "planning-session.db");
+    }
     private SqliteConnection Open()
     {
         var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString());

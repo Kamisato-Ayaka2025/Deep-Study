@@ -34,6 +34,7 @@ internal sealed partial class CollectionStore(string root, Guid libraryId)
                 CREATE TABLE IF NOT EXISTS summaries(id TEXT PRIMARY KEY,parent_hashes TEXT NOT NULL,text TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS extraction_jobs(id TEXT PRIMARY KEY,collection_id TEXT NOT NULL,json TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS extraction_pages(cache_key TEXT PRIMARY KEY,collection_id TEXT NOT NULL,page INTEGER NOT NULL,json TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS staged_ocr(collection_id TEXT NOT NULL,page INTEGER NOT NULL,json TEXT NOT NULL,PRIMARY KEY(collection_id,page));
                 CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(id UNINDEXED,version_id UNINDEXED,tokens);
                 CREATE TABLE IF NOT EXISTS structure_indexes(version TEXT PRIMARY KEY,collection_id TEXT NOT NULL,json TEXT NOT NULL);
                 PRAGMA user_version=2;

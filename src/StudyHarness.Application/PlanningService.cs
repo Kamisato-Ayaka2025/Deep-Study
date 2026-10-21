@@ -75,11 +75,48 @@ public sealed class PlanningService(IPlanningStore store, IKnowledgeStore knowle
                             foreach (var summary in collection.Summaries ?? []) previews[(collection.Collection.Id, summary.EntryKey)] = summary.Text[..Math.Min(80, summary.Text.Length)];
                         }
             if (collections.Count > 10) return Result<PlanningReview>.Fail(ErrorCode.VALIDATION_ERROR, "本次集合超过10个，请缩小明确范围。");
+            // Large books need representative evidence from beginning, middle and end.
+            // Keep full chunks and their original source identities; never send the whole book.
+            var sampledCharacters = 0;
+            var contentsCharacters = 0;
+            foreach (var collection in collections.Where(c => c.Manifest.Entries.Count >= 100 && c.References.Any(r => r.Locator.Page is not null)))
+            {
+                var pages = collection.References.Where(r => r.Locator.Page is not null).GroupBy(r => r.Locator.Page).OrderBy(g => g.Key).ToArray();
+                // Contents pages give real chapter boundaries. Detect their local excerpts,
+                // including continuation pages with dotted page-number leaders.
+                foreach (var entry in collection.Manifest.Entries.Where(e => int.TryParse(e.Locator,out var p) && p <= 40))
+                {
+                    var excerpt = previews.GetValueOrDefault((collection.Manifest.CollectionId,entry.Key), "");
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(excerpt,@"目录|contents|(?:…{2,}|\.{4,})\s*\d",System.Text.RegularExpressions.RegexOptions.IgnoreCase)) continue;
+                    foreach (var reference in collection.References.Where(r => r.Locator.Page?.ToString() == entry.Locator))
+                    {
+                        if(sources.Any(s=>s.Reference==reference)) continue;
+                        var resolved=await knowledge.ResolveAsync(reference,ct);
+                        if(resolved.Text is not {} body || contentsCharacters+body.Length>12000 || sources.Count>=60) continue;
+                        contentsCharacters+=body.Length;
+                        var source=new PlanSource("s"+(sources.Count+1),reference,true); sources.Add(source);
+                        texts.Add(new(source.Key,0,ModelSourceKind.OriginalMaterial,body,$"原书目录候选 / PDF页{reference.Locator.Page}（书内页码可能不同，按实际页目录映射）"));
+                    }
+                }
+                var sampleCount=Math.Min(12,pages.Length);
+                // Alternate ends so the character budget cannot consume all slots in the first half.
+                foreach (var sample in Enumerable.Range(0,sampleCount).Select(i=>i%2==0 ? i/2 : sampleCount-1-i/2))
+                {
+                    var page = pages[sample * (pages.Length - 1) / Math.Max(1, sampleCount - 1)];
+                    var reference = page.First();
+                    if (sources.Any(s => s.Reference == reference)) continue;
+                    var resolved = await knowledge.ResolveAsync(reference,ct);
+                    if (resolved.Text is not { } body || sampledCharacters + body.Length > 24000 || sources.Count >= 60) continue;
+                    sampledCharacters += body.Length;
+                    var source = new PlanSource("s" + (sources.Count + 1),reference,true); sources.Add(source);
+                    texts.Add(new(source.Key,0,ModelSourceKind.OriginalMaterial,body,$"全书分段样本 / 页{reference.Locator.Page}"));
+                }
+            }
             if (knowledge is ICollectionKnowledge retrieval)
                 foreach (var group in collections.GroupBy(c => c.LibraryId))
                     foreach (var fragment in await retrieval.RetrieveAsync(group.Key, draft.Input.Request, group.Select(c => c.Manifest.CollectionId).ToArray(), 24000, ct))
                     {
-                        if (sources.Any(s => s.Reference == fragment.Reference)) continue;
+                        if (sources.Any(s => s.Reference == fragment.Reference) || sources.Count >= 98) continue;
                         var preferredCollection = collections.Any(c => c.References.Contains(fragment.Reference) && c.References.Any(draft.Input.PreferredReferences.Contains));
                         var source = new PlanSource("s" + (sources.Count + 1), fragment.Reference, preferredCollection); sources.Add(source);
                         texts.Add(new(source.Key, 0, ModelSourceKind.OriginalMaterial, fragment.Text, fragment.Reference.Locator.Heading));
@@ -91,6 +128,7 @@ public sealed class PlanningService(IPlanningStore store, IKnowledgeStore knowle
             var adaptivePrompt = new ModelSource("planning-v2", draft.Revision, ModelSourceKind.UserText,
                 AdaptivePlanningPrompt.Text + "\n已保存用户输入：" + JsonSerializer.Serialize(draft.Input, PromptJson) +
                 "\n冻结完整目录（键/标题/取得状态/质量标记；不是正文；没有fetchOnDemand标记的未取得正文不能included；fetchOnDemand表示后续按课获取，不等于已读正文）：\n" + directory +
+                (collections.Any(c => c.Manifest.Entries.Count >= 100) ? "\n长教材处理：本地保存全部已取得页的完整正文，本次仅发送完整页目录、有来源的索引摘录、分段代表原文和目标检索片段。按全书章节规划，不能缩成首批页或分段样本的几个主题。已取得页可安排在相应章节，课件生成时再取其正文；未取得页仍不得假装已取得。连续页使用coverage范围简写以控制输出长度。" : "") +
                 (collections.Count == 0 ? "\n本次没有目录条目，coverage必须严格输出空数组[]。s1等仅为正文引用，不能生成coverage记录。" : ""));
             try { return Result<PlanningReview>.Success(new(draft, sources.ToArray(), await egress.PrepareAdaptiveAsync(config.Model,
                 new[] { adaptivePrompt }.Concat(texts.Select(s => s with { Text = "[资料id=" + s.Id + "]\n" + s.Text })), true, ct)) { PreparationStarted = preparationStarted, Collections = collections }); }
@@ -163,23 +201,27 @@ public sealed class PlanningService(IPlanningStore store, IKnowledgeStore knowle
                     document = Result<PlanDocument>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "PSRC001：缺少有效资料读取记录，未保存计划。");
                 else
                 {
+                    parsed = Result<PlanCandidate>.Success(PlanCandidateNormalization.Apply(parsed.Value!, current.Input,
+                        preview.Sources.Where(s => readIds.Contains(s.Key)).ToArray()));
                     var projectCode = preview.Sources.Where(s => s.UserPreferred && s.Reference.Locator.Heading?.StartsWith("代码行 ", StringComparison.Ordinal) == true).Select(s => s.Key).ToArray();
                     if (projectCode.Length > 0 && parsed.Value!.Scope is ("SimpleC" or "CppAlgorithms") && parsed.Value.Nodes.Where(n => n.Type == "lab").Any(n =>
                         n.Lab is null || !n.Lab.SourceKeys.Any(k => projectCode.Contains(k) && readIds.Contains(k))))
                         document = Result<PlanDocument>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "PSRC002：实验未引用实际读取的用户项目源码。");
                     else document = PlanRules.Validate(current.Id, current.Input, parsed.Value!, preview.Sources.Where(s => readIds.Contains(s.Key)).ToArray(), trace.Usage, preview.Collections);
                 }
-                if (document.Ok && document.Value!.Collections is { Count: > 0 } &&
-                    document.Value.Candidate.Nodes.Any(n => n.Type == "theory" && CourseMaterials.MissingBinding(document.Value, n)))
-                    document = Result<PlanDocument>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "PCOV007：每节理论课必须绑定至少一个included资料条目；同一条目可支持多课。补齐遗漏的nodeKeys，不虚构目录条目。");
+                if (document.Ok && CourseMaterials.MissingBindingError(document.Value!) is {} bindingError)
+                    document = Result<PlanDocument>.Fail(ErrorCode.INVALID_MODEL_OUTPUT,bindingError);
                 if (adaptive && telemetry is not null) await telemetry.RecordAsync(new(taskId, "validation", attempt, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
                     document.Ok ? "valid" : document.Error!.Message, null), ct);
                 if (!document.Ok)
                 {
                     trace.Outcome = document.Error!.Code + ": " + document.Error.Message;
+                    var repeated = failedCandidate == reply.Value.Text && errors == document.Error.Message;
                     failedCandidate = reply.Value.Text; errors = document.Error.Message;
                     if (adaptive && document.Error.Code == ErrorCode.INVALID_MODEL_OUTPUT)
                     { preview.FailedCandidate = failedCandidate; preview.ValidationError = errors; }
+                    if (adaptive && repeated)
+                        return Result<PlanningDraft>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, document.Error.Message + "\n模型重复返回相同失败候选，已停止本轮自动重试，避免继续消耗费用。");
                     if (!adaptive || !repairInvalid || attempt == dispatchLimit) return new(false, null, document.Error);
                     continue;
                 }
