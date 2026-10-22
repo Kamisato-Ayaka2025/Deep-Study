@@ -48,7 +48,7 @@ public sealed class SqlitePlanningSessionStore : IPlanningSessionStore
         using var file = File.Exists(path) ? SafeKnowledgeFiles.PinExistingFile(path) : null;
         using var db = Open();
         using var cmd = db.CreateCommand();
-        cmd.CommandText = "INSERT INTO session VALUES(1,$json) ON CONFLICT(id) DO UPDATE SET json=excluded.json";
+        cmd.CommandText = "INSERT INTO session VALUES(1,$json) ON CONFLICT(id) DO UPDATE SET json=excluded.json WHERE session.json <> excluded.json";
         cmd.Parameters.AddWithValue("$json", JsonSerializer.Serialize(session, Wire.Options));
         cmd.ExecuteNonQuery();
     }

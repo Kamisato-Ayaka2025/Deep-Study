@@ -19,6 +19,46 @@ public sealed class DeepSeekTests
         }
     }
     private const string Success = """{"choices":[{"message":{"content":"A variable stores a value."},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":6,"total_tokens":16}}""";
+    [Theory]
+    [InlineData("deepseek-chat", "deepseek-chat")]
+    [InlineData("synthetic-test-secret", null)]
+    [InlineData("bad\nmodel", null)]
+    public async Task ReportedModelIsSeparateBoundedMetadata(string model, string? expected)
+    {
+        var response = Success.Insert(1, "\"model\":" + JsonSerializer.Serialize(model) + ",");
+        using var handler = new Handler(HttpStatusCode.OK, response);
+        using var client = new HttpClient(handler);
+        var egress = new ModelEgress(new DeepSeekProvider(new Key(), client));
+        var review = egress.PrepareConnectionCheck("configured-model");
+        var result = await egress.SendAsync(review, egress.Approve(review, ConsentMode.Each));
+        Assert.True(result.Ok);
+        Assert.Equal("configured-model", result.Value!.Model);
+        Assert.Equal(expected, result.Value.ReportedModel);
+        Assert.DoesNotContain("synthetic-test-secret", JsonSerializer.Serialize(result));
+    }
+    [Fact]
+    public async Task SharedTransportNeverCarriesPlanOrLessonMessagesIntoNextRequest()
+    {
+        using var handler = new Handler(HttpStatusCode.OK, Success);
+        using var client = new HttpClient(handler);
+        var egress = new ModelEgress(new DeepSeekProvider(new Key(), client));
+        foreach (var marker in new[] { "plan-A-private", "subject-A-lesson-1", "subject-B-lesson-1" })
+        {
+            var review = egress.Prepare("deepseek-chat", [new(marker, 0, ModelSourceKind.UserText, marker)]);
+            Assert.True((await egress.SendAsync(review, egress.Approve(review, ConsentMode.Each))).Ok);
+            using (var sent = JsonDocument.Parse(handler.Payload!))
+                Assert.Equal(marker, Assert.Single(sent.RootElement.GetProperty("messages").EnumerateArray()).GetProperty("content").GetString());
+            for (var click = 0; click < 2; click++)
+            {
+                var probe = egress.PrepareConnectionCheck("deepseek-chat");
+                Assert.True((await egress.SendAsync(probe, egress.Approve(probe, ConsentMode.Each))).Ok);
+                using var body = JsonDocument.Parse(handler.Payload!);
+                Assert.Equal("你是什么模型？", Assert.Single(body.RootElement.GetProperty("messages").EnumerateArray()).GetProperty("content").GetString());
+                Assert.DoesNotContain(marker, handler.Payload!);
+                Assert.False(body.RootElement.TryGetProperty("conversation_id", out _));
+            }
+        }
+    }
     [Fact]
     public async Task ConnectionIdentityIsBasedOnRequestAndDoesNotRewriteChatGptReply()
     {
@@ -45,6 +85,8 @@ public sealed class DeepSeekTests
             Assert.Equal("你是什么模型？", message.GetProperty("content").GetString());
             Assert.Contains("请求地址：https://api.deepseek.com/chat/completions", vm.Status);
             Assert.Contains("请求模型：" + configured, vm.Status);
+            Assert.Contains("接口返回模型：未提供有效标识", vm.Status);
+            Assert.Contains("独立请求", vm.Status);
             Assert.Contains("不能作为身份认证", vm.Status);
             Assert.Contains("模型原始回复：\n" + answer, vm.Status);
             Assert.DoesNotContain("我是 DeepSeek", vm.Status);

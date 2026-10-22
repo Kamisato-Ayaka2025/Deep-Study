@@ -40,6 +40,16 @@ internal static class P14DesktopCheck
             void Click(string id) => Button(id).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             var path=Path.Combine(root,"scan.pdf"); var pausePath=Path.Combine(evidence,"paused-count.txt"); var restart=File.Exists(pausePath);
             var library=(await knowledge.CurrentAsync())!;
+            if (File.Exists(Path.Combine(evidence,"removed.marker")))
+            {
+                Check(workspace.Materials.Count==0 && planning.LocalReferences.Count==0 && planning.PendingCollections.Count==0,"removed-binding-stays-empty-after-restart");
+                Check(ocr.Calls==0,"removed-restart-no-paid-work");
+                Check((await knowledge.CollectionsAsync(library.Id)).Count==2,"removed-restart-keeps-both-caches");
+                await workspace.ImportAsync(HostSelection.FromPlanFilePicker(path));
+                Check(ocr.Calls==0 && workspace.References.Count==1,"removed-restart-readd-zero-ocr");
+                File.WriteAllText(Path.Combine(evidence,"retention.json"),JsonSerializer.Serialize(new { checks,failed=0,realNetwork=false },Wire.Options));
+                System.Windows.Application.Current.Shutdown(0); return;
+            }
             if (!restart)
             {
                 var pdf=new UglyToad.PdfPig.Writer.PdfDocumentBuilder(); for(var i=0;i<45;i++) pdf.AddPage(150,200); await File.WriteAllBytesAsync(path,pdf.Build());
@@ -76,15 +86,34 @@ internal static class P14DesktopCheck
             if(restart)
             {
                 Click("RemoveMaterial"); await Wait(() => !workspace.Busy && workspace.Materials.Count==0);
-                Check((await knowledge.CollectionsAsync(library.Id)).Count==0,"delete-clears-pdf-collection");
+                Check((await knowledge.CollectionsAsync(library.Id)).Single().Collection.ReadyCount==45,"remove-retains-complete-scan-cache");
                 Check(File.Exists(path) && planning.LocalReferences.Count==0,"delete-retains-original-removes-binding");
-                var importing=workspace.ImportAsync(HostSelection.FromPlanFilePicker(path));
+                Check(!planning.CanSendPlan,"remove-invalidates-plan-preview");
+                Check(new SqlitePlanningSessionStore(root).Load()?.References.Count==0,"remove-persists-empty-binding");
+                var before = ocr.Calls;
+                await workspace.ImportAsync(HostSelection.FromPlanFilePicker(path));
+                Check(ocr.Calls==before && workspace.References.Count==1,"reimport-complete-zero-ocr");
+                await window.Dispatcher.InvokeAsync(window.UpdateLayout, System.Windows.Threading.DispatcherPriority.ContextIdle);
+                Click("RemoveMaterial"); await Wait(() => !workspace.Busy && workspace.Materials.Count==0);
+                var partialPath=Path.Combine(root,"partial.pdf");
+                var partialPdf=new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
+                for(var page=0;page<8;page++) partialPdf.AddPage(160,210);
+                await File.WriteAllBytesAsync(partialPath,partialPdf.Build());
+                var importing=workspace.ImportAsync(HostSelection.FromPlanFilePicker(partialPath));
                 await Wait(()=>workspace.ScanCompleted>=2);
                 Check(Button("RemoveMaterial").IsEnabled,"delete-enabled-during-scan");
                 Click("RemoveMaterial"); await importing;
-                await Wait(()=>!workspace.Busy && workspace.Collections.Count==0);
+                await Wait(()=>!workspace.Busy && workspace.Materials.Count==0);
                 Check(workspace.Materials.Count==0 && workspace.References.Count==0,"delete-during-scan-no-late-binding");
                 Check(File.Exists(path),"delete-during-scan-retains-original");
+                var partial=workspace.Collections.Single(c=>c.Snapshot.Collection.Label=="partial.pdf").Snapshot.Collection;
+                Check(partial.ReadyCount>0 && partial.ReadyCount<8,"remove-retains-partial-scan-cache");
+                before=ocr.Calls;
+                await workspace.ImportAsync(HostSelection.FromPlanFilePicker(partialPath));
+                Check(ocr.Calls-before==8-partial.ReadyCount,"reimport-partial-only-missing-pages");
+                await window.Dispatcher.InvokeAsync(window.UpdateLayout, System.Windows.Threading.DispatcherPriority.ContextIdle);
+                Click("RemoveMaterial"); await Wait(()=>!workspace.Busy && workspace.Materials.Count==0);
+                File.WriteAllText(Path.Combine(evidence,"removed.marker"),"Both PDFs removed from draft; shared cache retained.");
             }
             File.WriteAllText(Path.Combine(evidence,restart ? "restart.json":"ui.json"),JsonSerializer.Serialize(new { checks,failed=0,realNetwork=false },Wire.Options));
             System.Windows.Application.Current.Shutdown(0);

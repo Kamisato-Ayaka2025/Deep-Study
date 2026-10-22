@@ -15,7 +15,8 @@ public sealed record DraftChoice(PlanningDraft Draft)
 public sealed class PlanningViewModel(PlanningService service, ILearningStore? learning = null, WebLearningService? web = null, IPlanningSessionStore? sessionStore = null) : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
-    public PlanningViewModel CreateBrowser() => new(service, learning);
+    private bool browserOnly;
+    public PlanningViewModel CreateBrowser() => new(service, learning) { browserOnly = true };
     private bool restoring, recoveryFailed, referencesEdited;
     private IReadOnlyList<SourceRef> localReferences = [];
     public IReadOnlyList<SourceRef> LocalReferences => localReferences;
@@ -83,7 +84,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         Persist();
         if (recoveryFailed) { Status = RecoveryStatus; return; }
         if (Busy) { Status = "正在处理，请等待完成或取消。"; return; }
-        if (PendingCollections.Count > 0) { Status = "教材扫描尚未完成，可能尚无可读正文。请点击继续扫描，完成后形成发送内容；也可点击×删除资料及扫描缓存。"; return; }
+        if (PendingCollections.Count > 0) { Status = "教材扫描尚未完成，可能尚无可读正文。请点击继续扫描，完成后形成发送内容；也可点击×移出本次计划，已扫描结果会保留。"; return; }
         if (string.IsNullOrWhiteSpace(Request) && localReferences.Count > 0)
             Request = "学习这些资料：" + string.Join("、", localReferences.Select(r => r.Locator.SourceLabel).Distinct());
         if (!string.IsNullOrWhiteSpace(ClarificationAnswer) && HasClarifications) { await SaveClarificationAsync(); return; }
@@ -164,7 +165,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         }
         catch (InvalidOperationException e) { Status = e.Message; }
     });
-    public ObservableCollection<DraftChoice> Drafts { get; } = [];
+    public SnapshotCollection<DraftChoice> Drafts { get; } = [];
     public SnapshotCollection<CourseNodeView> Nodes { get; } = [];
     public LabPreviewModel? LabPreview(string key)
     {
@@ -174,9 +175,9 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     public string[] Scopes { get; } = ["Auto", "Math", "Concepts", "SimpleC", "CppAlgorithms", "OutOfScope"];
     public DraftChoice? Selected { get => selected; set { if (ReferenceEquals(selected, value)) return; selected = value; if (value is not null) Apply(value.Draft); Notify(); } }
     public string Request { get => request; set { if (request == value) return; request = value; if (sessionStore is null) ResetWeb(); Edited(); } }
-    public string Background { get => background; set { background = value; Edited(); } }
+    public string Background { get => background; set { if (background == value) return; background = value; Edited(); } }
     public string Goal { get => goal; set { if (goal == value) return; goal = value; if (sessionStore is null) ResetWeb(); Edited(); } }
-    public string Minutes { get => minutes; set { minutes = value; Edited(); } }
+    public string Minutes { get => minutes; set { if (minutes == value) return; minutes = value; Edited(); } }
         public string Hours
     {
         get => hours;
@@ -190,10 +191,10 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
             Edited();
         }
     }
-    public string Scope { get => scope; set { scope = value; Edited(); } }
+    public string Scope { get => scope; set { if (scope == value) return; scope = value; Edited(); } }
     public string Status { get => status; private set { status = value; Notify(); } }
-    public string Preview { get => preview; private set { preview = value; Notify(); } }
-    public string Summary { get => summary; private set { summary = value; Notify(); } }
+    public string Preview { get => preview; private set { if (preview == value) return; preview = value; Notify(); } }
+    public string Summary { get => summary; private set { if (summary == value) return; summary = value; Notify(); } }
     public string Detail { get => detail; private set { detail = value; Notify(); } }
     public bool Busy { get => busy; private set { busy = value; Notify(); RefreshFlags(); } }
     public bool CanOperate => !Busy;
@@ -234,8 +235,15 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     }
     private async Task Reload(Guid? id, CancellationToken ct)
     {
-        var drafts = await Task.Run(() => service.ListAsync(ct), ct); Drafts.Clear(); foreach (var draft in drafts) Drafts.Add(new(draft));
-        Selected = Drafts.FirstOrDefault(d => d.Draft.Id == id) ?? Drafts.FirstOrDefault();
+        var drafts = await Task.Run(() => service.ListAsync(ct), ct);
+        var previous = Drafts.ToDictionary(d => d.Draft.Id);
+        Drafts.Replace(drafts.Select(d => previous.TryGetValue(d.Id, out var old) && old.Draft.Revision == d.Revision &&
+            old.Draft.Confirmed == d.Confirmed && old.Draft.Plan?.Hash == d.Plan?.Hash ? old : new DraftChoice(d)));
+        var choice = Drafts.FirstOrDefault(d => d.Draft.Id == id) ?? Drafts.FirstOrDefault();
+        // Only the read-only course browser may skip reapplying an unchanged selection.
+        // An explicit editor reload must still discard unsaved form edits and reset confirmation.
+        if (!browserOnly && choice is not null && ReferenceEquals(Selected, choice)) Apply(choice.Draft);
+        else Selected = choice;
     }
     public Task SaveAsync(IReadOnlyList<SourceRef> references) => Run(async ct =>
     {
@@ -375,9 +383,10 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     private static string CoverageSummary(PlanDocument document)
     {
         if (document.Collections is not { Count: > 0 }) return "本计划未使用教材集合目录。";
+        var coverage = document.Candidate.Coverage!.ToDictionary(c => c.EntryKey);
         return string.Join("\n", document.Collections.SelectMany((c, i) => c.Manifest.Entries.Select(entry =>
         {
-            var item = document.Candidate.Coverage!.Single(e => e.EntryKey == AdaptivePlanRules.DirectoryKey(i, entry.Key));
+            var item = coverage[AdaptivePlanRules.DirectoryKey(i, entry.Key)];
             var state = item.State == "included" ? "纳入：" + string.Join("、", item.NodeKeys) : item.State == "excluded" ? "排除：" + item.Reason : "缺口：" + item.Reason;
             return $"{entry.Heading} · {state} · {(entry.State is "textReady" or "ocrReady" ? "已取得正文" : "正文未取得")}" + (entry.QualityFlags.Contains("visualReviewRequired") ? " · 图文待复核" : "");
         })));

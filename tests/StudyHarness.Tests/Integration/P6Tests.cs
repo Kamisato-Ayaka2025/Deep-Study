@@ -145,6 +145,24 @@ public sealed class P6Tests : IDisposable
         Assert.Empty(Tutor(provider).Messages); Assert.Empty(await Store.CompletedNodesAsync(draft.Id));
     }
     [Fact]
+    public async Task SameNodeKeyInAnotherSubjectCannotReuseTutorHistory()
+    {
+        var draft = await LabFixtureProvider.SeedAsync(root);
+        var other = (await Plans.StartAsync(new(Guid.NewGuid(), 0, draft.Input with { Request = "second subject" }))).Value!;
+        var validated = PlanRules.Validate(other.Id, other.Input, draft.Plan!.Candidate, draft.Plan.Sources, null);
+        Assert.True(validated.Ok, validated.Error?.Message);
+        var saved = await Plans.SaveProposalAsync(new(Guid.NewGuid(), other.Revision, validated.Value!), other.Id);
+        Assert.True(saved.Ok, saved.Error?.Message); other = saved.Value!;
+        other = (await Plans.ConfirmAsync(new(Guid.NewGuid(), other.Revision, new ConfirmPlan(other.Id, other.Plan!.Hash, true)))).Value!;
+        var provider = new Provider(); using var session = Tutor(provider);
+        await session.PrepareAsync(draft.Id, "L1", "private-first-subject-marker", "");
+        Assert.True((await session.SendAsync(true)).Ok);
+        var next = await session.PrepareAsync(other.Id, "L1", "second question", "");
+        Assert.Empty(session.Messages);
+        Assert.Equal("[]", next.Sources.Single(s => s.Id == "temporary-dialogue").Text);
+        Assert.DoesNotContain(next.Sources, s => s.Text.Contains("private-first-subject-marker"));
+    }
+    [Fact]
     public async Task ChangedModelRevokesPreparedRequest()
     {
         var draft = await LabFixtureProvider.SeedAsync(root); var provider = new Provider(); using var session = Tutor(provider);

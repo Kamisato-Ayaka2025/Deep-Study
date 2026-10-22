@@ -23,7 +23,7 @@ public sealed record Query<T>(T Payload, int SchemaVersion = 1);
 public sealed record SettingsDto(string Model, GenerationMode GenerationMode, ConsentMode ConsentMode,
     bool HasApiKey, long Revision, int SchemaVersion = 1, Guid? LibraryId = null, string? LibraryPath = null);
 public sealed record SaveSettings(string Model, GenerationMode GenerationMode, ConsentMode ConsentMode, string? NewApiKey);
-public sealed record ProviderReply(string Text, bool IsFake, int SchemaVersion = 1, TokenUsage? Usage = null, string? Model = null, IReadOnlyList<string>? ReadSourceIds = null, int ToolCalls = 0);
+public sealed record ProviderReply(string Text, bool IsFake, int SchemaVersion = 1, TokenUsage? Usage = null, string? Model = null, IReadOnlyList<string>? ReadSourceIds = null, int ToolCalls = 0, string? ReportedModel = null);
 public static class Wire
 {
     public static JsonSerializerOptions Options { get; } = Create();

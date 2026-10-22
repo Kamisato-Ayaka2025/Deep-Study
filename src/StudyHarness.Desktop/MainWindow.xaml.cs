@@ -21,6 +21,9 @@ public partial class MainWindow : Window
     private Window? lessonWindow;
     private CourseNodeView? selectedCourseNode;
     private double lastRouteWidth;
+    private bool graphDirty = true, courseRefreshAgain;
+    private Task? courseRefreshTask;
+    private readonly Dictionary<Guid, (long Revision, string Hash, int Done, Button Card)> courseCards = [];
     public TaskCompletionSource Ready { get; } = new();
     internal int GraphRenderCount { get; private set; }
     private bool schedulerBusy, progressBusy, closed;
@@ -39,7 +42,7 @@ public partial class MainWindow : Window
         planning = planningViewModel; CourseModel = planning.CreateBrowser(); ChatPanel.DataContext = planning; CoursesPanel.DataContext = CourseModel;
         generation = generationService; root = dataRoot; labs = labService;
         tutoring = tutoringFactory; tutorFiles = files; lifecycle = subjectLifecycle;
-        CourseModel.Nodes.CollectionChanged += (_, _) => DrawGraph();
+        CourseModel.Nodes.CollectionChanged += (_, _) => { graphDirty = true; if (CourseMap.IsVisible) DrawGraph(); };
         workspace.References.CollectionChanged += (_, _) => { workspace.RefreshMaterials(); if (!syncReferences) planning.SetReferences(workspace.References.ToArray()); };
         workspace.PendingCollections.CollectionChanged += (_, _) => { workspace.RefreshMaterials(); if (!syncReferences) planning.SetPendingCollections(workspace.PendingCollections.ToArray()); };
         workspace.PropertyChanged += (_, e) =>
@@ -70,7 +73,7 @@ public partial class MainWindow : Window
         scheduler.Tick += (_, _) =>
         {
             if (!schedulerBusy && generation is not null) _ = RunSchedulerAsync();
-            if (!progressBusy && DateTimeOffset.UtcNow >= nextProgressRefresh) _ = RefreshProgressAsync();
+            if (CourseMap.IsVisible && !progressBusy && DateTimeOffset.UtcNow >= nextProgressRefresh) _ = RefreshProgressAsync();
         };
         scheduler.Start();
         Closing += (_, e) => { if (!vm.CanLeaveSettings()) e.Cancel = true; };
@@ -187,14 +190,46 @@ public partial class MainWindow : Window
         NoSubjects.Visibility = CourseList.Children.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
     private async void CourseBack_Click(object sender, RoutedEventArgs e) { await RefreshCoursesAsync(); ShowCourseList(); }
-    internal async Task RefreshCoursesAsync()
+    internal Task RefreshCoursesAsync()
     {
+        if (courseRefreshTask is { IsCompleted: false } pending) { courseRefreshAgain = true; return pending; }
+        courseRefreshTask = RefreshCoursesLoopAsync();
+        return courseRefreshTask;
+    }
+    private async Task RefreshCoursesLoopAsync()
+    {
+        try
+        {
+            do { courseRefreshAgain = false; await RefreshCoursesCoreAsync(); } while (courseRefreshAgain && !closed);
+        }
+        catch (OperationCanceledException) when (closed) { }
+    }
+    private async Task RefreshCoursesCoreAsync()
+    {
+        if (closed) return;
         await CourseModel.LoadAsync();
-        CourseList.Children.Clear();
-        foreach (var choice in CourseModel.Drafts.Where(d => d.Draft.Confirmed))
+        var choices = CourseModel.Drafts.Where(d => d.Draft.Confirmed).ToArray();
+        // SQLite ports may complete synchronously. Never project all course progress on the dispatcher.
+        var completed = await Task.Run(async () =>
+        {
+            var counts = new Dictionary<Guid, int>();
+            foreach (var choice in choices)
+            {
+                schedulerLifetime.Token.ThrowIfCancellationRequested();
+                var keys = choice.Draft.Plan!.Candidate.Nodes.Select(n => n.Key).ToHashSet(StringComparer.Ordinal);
+                counts[choice.Draft.Id] = generation is null ? 0 :
+                    (await generation.Learning.CompletedNodesAsync(choice.Draft.Id, schedulerLifetime.Token)).Count(keys.Contains);
+            }
+            return counts;
+        }, schedulerLifetime.Token);
+        if (closed || courseRefreshAgain) return;
+        var cards = new List<Button>();
+        foreach (var choice in choices)
         {
             var draft = choice.Draft; var plan = draft.Plan!;
-            var done = generation is null ? 0 : (await generation.Learning.CompletedNodesAsync(draft.Id)).Count(k => plan.Candidate.Nodes.Any(n => n.Key == k));
+            var done = completed[draft.Id];
+            if (courseCards.TryGetValue(draft.Id, out var cached) && cached.Revision == draft.Revision && cached.Hash == plan.Hash && cached.Done == done)
+            { cards.Add(cached.Card); continue; }
             var total = plan.Candidate.Nodes.Count;
             var ratio = total == 0 ? 0 : (double)done / total;
             var color = ProgressColor(ratio);
@@ -246,7 +281,15 @@ public partial class MainWindow : Window
             };
             System.Windows.Automation.AutomationProperties.SetAutomationId(open, "Subject-" + draft.Id);
             open.Click += (_, _) => OpenCourse(choice);
-            CourseList.Children.Add(open);
+            cards.Add(open);
+            courseCards[draft.Id] = (draft.Revision, plan.Hash, done, open);
+        }
+        var live = choices.Select(c => c.Draft.Id).ToHashSet();
+        foreach (var id in courseCards.Keys.Where(id => !live.Contains(id)).ToArray()) courseCards.Remove(id);
+        if (!CourseList.Children.Cast<UIElement>().SequenceEqual(cards))
+        {
+            CourseList.Children.Clear();
+            foreach (var card in cards) CourseList.Children.Add(card);
         }
         NoSubjects.Visibility = CourseList.Children.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -272,7 +315,8 @@ public partial class MainWindow : Window
         CoursesHeader.Visibility = Visibility.Collapsed;
         CourseList.Visibility = NoSubjects.Visibility = Visibility.Collapsed;
         CourseMap.Visibility = Visibility.Visible;
-        DrawGraph();
+        if (graphDirty) DrawGraph();
+        nextProgressRefresh = DateTimeOffset.MinValue;
         var first = CourseModel.Nodes.OrderBy(n => n.Layer).FirstOrDefault();
         if (first is not null) SelectNode(first);
         UpdateCourseMeta();
@@ -317,6 +361,7 @@ public partial class MainWindow : Window
     private void DrawGraph() => DrawGraphCore(countRender: true);
     private void DrawGraphCore(bool countRender)
     {
+        graphDirty = false;
         if (countRender) GraphRenderCount++;
         CourseCanvas.Children.Clear();
         var nodes = CourseModel.Nodes.OrderBy(n => n.Layer).ToArray();

@@ -209,7 +209,21 @@ public sealed class OcrFlowTests : IDisposable
         var deleting=workspace.DeleteMaterialAsync(Assert.Single(workspace.Materials));
         Assert.False(deleting.IsCompleted);
         release.TrySetResult(); await Task.WhenAll(importing,deleting);
-        Assert.Empty(workspace.Collections); Assert.Empty(workspace.Materials); Assert.Empty(workspace.References);
-        Assert.Contains("扫描缓存已删除",workspace.Status); Assert.True(File.Exists(Path.Combine(root,"scan.pdf")));
+        Assert.Single(workspace.Collections); Assert.Empty(workspace.Materials); Assert.Empty(workspace.References);
+        Assert.Empty(workspace.PendingCollections);
+        Assert.Contains("扫描缓存和已有课程保留",workspace.Status); Assert.True(File.Exists(Path.Combine(root,"scan.pdf")));
+        var ready = workspace.Collections.Single().Snapshot.Collection.ReadyCount;
+        Assert.True(ready > 0);
+        provider.During = null;
+        var calls = provider.Calls;
+        await workspace.ImportAsync(HostSelection.FromPlanFilePicker(Path.Combine(root,"scan.pdf")));
+        Assert.Equal(workspace.Collections.Single().Snapshot.Collection.EntryCount - ready, provider.Calls - calls);
+        calls = provider.Calls;
+        await workspace.DeleteMaterialAsync(Assert.Single(workspace.Materials));
+        await workspace.LoadAsync();
+        Assert.Empty(workspace.Materials);
+        await workspace.ImportAsync(HostSelection.FromPlanFilePicker(Path.Combine(root,"scan.pdf")));
+        Assert.Equal(calls, provider.Calls);
+        Assert.Single(workspace.Materials);
     }
 }

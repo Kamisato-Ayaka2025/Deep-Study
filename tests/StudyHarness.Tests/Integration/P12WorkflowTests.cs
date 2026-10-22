@@ -45,6 +45,40 @@ public sealed class P12WorkflowTests : IDisposable
             provider, imported.Value!.References![0], knowledge, selected.Id);
     }
     [Fact]
+    public async Task P16_UnchangedRecoverySaveDoesNotCommitButActualEditIsImmediatelyDurable()
+    {
+        var f = await Setup();
+        var journal = new SqlitePlanningSessionStore(root);
+        var vm = new PlanningViewModel(f.Service, sessionStore: journal);
+        vm.Request = "first";
+        using var observer = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(root, "planning-session.db")};Pooling=False");
+        observer.Open();
+        using var command = observer.CreateCommand(); command.CommandText = "PRAGMA data_version";
+        var version = command.ExecuteScalar();
+        journal.Save(journal.Load()!);
+        Assert.Equal(version, command.ExecuteScalar());
+        vm.Request = "last edit before crash";
+        Assert.NotEqual(version, command.ExecuteScalar());
+        Assert.Equal("last edit before crash", new SqlitePlanningSessionStore(root).Load()!.Request);
+    }
+    [Fact]
+    public async Task P16_ReloadReusesUnchangedDraftAndInvalidatesChangedRevision()
+    {
+        var f = await Setup(); var store = new SqlitePlanningStore(root);
+        var draft = (await store.StartAsync(new(Guid.NewGuid(), 0, new("first", null, null, null, "Adaptive", [])))).Value!;
+        var vm = new PlanningViewModel(f.Service);
+        await vm.LoadAsync(); var previous = Assert.Single(vm.Drafts);
+        await vm.LoadAsync(); Assert.Same(previous, Assert.Single(vm.Drafts));
+        vm.Request = "unsaved input"; vm.AckFrozen = true;
+        await vm.LoadAsync(); Assert.Equal("first", vm.Request); Assert.False(vm.AckFrozen);
+        var revised = await store.ReviseAsync(new(Guid.NewGuid(), draft.Revision, new(draft.Id, draft.Input with { Request = "changed" })));
+        Assert.True(revised.Ok);
+        await vm.LoadAsync(); Assert.NotSame(previous, Assert.Single(vm.Drafts)); Assert.Equal("changed", vm.Request);
+        _ = new SqliteLearningStore(root, store);
+        Assert.True((await new SqliteSubjectLifecycle(root).DeleteAsync(draft.Id, revised.Value!.Revision, true)).Ok);
+        await vm.LoadAsync(); Assert.Empty(vm.Drafts);
+    }
+    [Fact]
     public async Task LauncherDotSegmentRootPreservesDraftAndFormsPreviewWithoutDispatch()
     {
         var f = await Setup();

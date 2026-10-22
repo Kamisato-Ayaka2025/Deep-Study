@@ -51,6 +51,10 @@ public partial class App : System.Windows.Application
                 new TutoringFiles(), new SqliteSubjectLifecycle(root));
             MainWindow.Show();
             await ((MainWindow)MainWindow).Ready.Task;
+            if (e.Args.Contains("--p16-selfcheck"))
+            {
+                await P16DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1], e.Args.Contains("--baseline")); return;
+            }
             if (e.Args.Contains("--p14-selfcheck"))
             {
                 var evidence = e.Args[Array.IndexOf(e.Args,"--evidence")+1];

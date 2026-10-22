@@ -36,24 +36,27 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
     public async Task DeleteMaterialAsync(MaterialChoice material)
     {
         if (operationCompletion is { } active) { Cancel(); await active.Task; }
-        await Run(async ct =>
+        await Run(ct =>
         {
         var snapshot=Collections.FirstOrDefault(c=>c.Snapshot.Collection.Id==material.CollectionId)?.Snapshot;
-        if (snapshot?.Collection.SourceKind == "pdf" && material.CollectionId is { } id && library is not null && service.Knowledge is IAutomaticPdfKnowledge pdf)
+        if (snapshot?.Collection.SourceKind == "pdf" && material.CollectionId is { } id)
         {
             var references=References.Where(r=>Belongs(snapshot,r)).Concat(material.References).Distinct().ToArray();
-            await pdf.DeletePdfAsync(library.Id,id,ct);
-            foreach (var reference in references) References.Remove(reference);
+            var removed = references.ToHashSet();
+            References.Replace(References.Where(r => !removed.Contains(r)));
             PendingCollections.Remove(id); SelectedCollection = null;
-            await LoadCollections(ct); RefreshMaterials();
-            Status = "资料及其扫描缓存已删除，原PDF与已生成课程正文保留。";
         }
         else
         {
-            foreach (var reference in material.References) References.Remove(reference);
+            var removed = material.References.ToHashSet();
+            References.Replace(References.Where(r => !removed.Contains(r)));
             if(material.PendingId is {} pending) PendingCollections.Remove(pending);
-            RefreshMaterials(); Status = "资料已从当前计划移除。";
         }
+        ocrReview = null; reviewedPrompt = null; reviewedReferences = []; importedReferences = [];
+        Preview = "资料已移除，请重新预览外发范围。";
+        RefreshMaterials();
+        Status = "已从本次计划移除；原文件、扫描缓存和已有课程保留。重新添加同一文件可复用扫描结果。";
+        return Task.CompletedTask;
         });
     }
     public Task ContinueScanAsync() => Run(ScanCoreAsync);
@@ -82,7 +85,8 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
         {
             await LoadCollections(CancellationToken.None);
             SelectedCollection = Collections.FirstOrDefault(c => c.Snapshot.Collection.Id == id);
-            foreach (var reference in previousRefs) References.Remove(reference);
+            var previousSet = previousRefs.ToHashSet();
+            References.Replace(References.Where(r => !previousSet.Contains(r)));
             if (SelectedCollection is { } current)
             {
                 if (current.Snapshot.References.Count > 0) UseCollection();
@@ -96,7 +100,8 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
     public void RemoveMaterial(MaterialChoice material)
     {
         if (Busy) return;
-        foreach (var reference in material.References) References.Remove(reference);
+        var removed = material.References.ToHashSet();
+        References.Replace(References.Where(r => !removed.Contains(r)));
         if (material.PendingId is { } id) PendingCollections.Remove(id);
         if (SelectedCollection is { } selected && (selected.Snapshot.Collection.Id == material.PendingId ||
             selected.Snapshot.References.Any(material.References.Contains))) SelectedCollection = null;
@@ -167,7 +172,8 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
         await LoadCollections(ct); await SearchCore(ct);
         if (SelectedCollection is { } selected && (PendingCollections.Contains(selected.Snapshot.Collection.Id) || selectedReferences.Length > 0))
         {
-            foreach (var reference in selectedReferences) References.Remove(reference);
+            var previousSet = selectedReferences.ToHashSet();
+            References.Replace(References.Where(r => !previousSet.Contains(r)));
             UseCollection();
             if (selected.Snapshot.References.Count > 0) PendingCollections.Remove(selected.Snapshot.Collection.Id);
         }
@@ -184,10 +190,10 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
     private SourceRef[] reviewedReferences = [];
     private IReadOnlyList<SourceRef> importedReferences = [];
     public ObservableCollection<KnowledgeFragment> Fragments { get; } = [];
-    public ObservableCollection<SourceRef> References { get; } = [];
+    public SnapshotCollection<SourceRef> References { get; } = [];
     public void RestoreReferences(IReadOnlyList<SourceRef> references)
     {
-        References.Clear(); foreach (var reference in references) References.Add(reference);
+        References.Replace(references);
         RefreshMaterials();
     }
     public KnowledgeFragment? SelectedFragment { get; set; }
@@ -216,8 +222,7 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
         importedReferences = result.Ok ? result.Value!.References ?? [] : [];
         if (selection.IsPlanImport)
         {
-            foreach (var reference in importedReferences)
-                if (!References.Contains(reference)) References.Add(reference);
+            References.Replace(References.Concat(importedReferences).Distinct());
             await LoadCollections(ct);
             SelectedCollection = Collections.LastOrDefault(c => result.Value?.Files.Any(f => f.SourceLabel == c.Snapshot.Collection.Label) == true) ?? SelectedCollection;
             foreach (var item in Collections.Where(c => result.Value?.Files.Any(f => f.Ok && f.SourceLabel == c.Snapshot.Collection.Label) == true))
@@ -259,7 +264,7 @@ public sealed class WorkspaceViewModel(WorkspaceService service, OcrService? ocr
     public void UseImportedReferences()
     {
         if (importedReferences.Count is < 1 or > 99) { Status = "本次导入没有可选片段或超过99块；请缩小目录或手动选择。原引用保留。"; return; }
-        References.Clear(); foreach (var reference in importedReferences) References.Add(reference);
+        References.Replace(importedReferences);
         Status = $"已用本次导入的{References.Count}个固定版本片段替换读取范围。请到计划页保存草稿并预览；尚未外发。";
     }
     public Task SearchAsync() => Run(async ct => { await SearchCore(ct); });

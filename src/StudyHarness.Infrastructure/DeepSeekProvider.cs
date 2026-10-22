@@ -132,7 +132,11 @@ public sealed class DeepSeekProvider(ICredentialReader credentials, HttpClient c
                 return Result<ProviderReply>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "服务正常结束但最终回复为空，未生成计划；未自动重试。");
             if (retrieval is not null && retrieval.ReadIds.Count == 0) return Result<ProviderReply>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "模型未读取资料，计划未保存。");
             TokenUsage? usage = completeUsage ? new(promptTokens, completionTokens, promptTokens + completionTokens) : null;
-            return Result<ProviderReply>.Success(new(text, false, Usage: usage, Model: request.Model, ReadSourceIds: retrieval?.ReadIds.ToArray(), ToolCalls: retrieval?.Calls ?? 0));
+            // Metadata is provider-reported, not a verified identity. Never expose a credential echoed here.
+            var reportedModel = root.TryGetProperty("model", out var modelField) && modelField.ValueKind == JsonValueKind.String ? modelField.GetString() : null;
+            if (reportedModel is not null && (reportedModel.Contains(key, StringComparison.Ordinal) ||
+                !System.Text.RegularExpressions.Regex.IsMatch(reportedModel, @"\A[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}\z"))) reportedModel = null;
+            return Result<ProviderReply>.Success(new(text, false, Usage: usage, Model: request.Model, ReadSourceIds: retrieval?.ReadIds.ToArray(), ToolCalls: retrieval?.Calls ?? 0, ReportedModel: reportedModel));
             }
             return Result<ProviderReply>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "按需读取超过8轮；已停止，未自动重试。请缩小资料范围。");
         }

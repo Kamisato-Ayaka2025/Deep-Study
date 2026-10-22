@@ -69,13 +69,14 @@ public sealed class ShellViewModel(SettingsService service, ModelEgress provider
         try
         {
             var config = await service.GetAsync(timeout.Token);
-            var review = provider.Prepare(config.Model, [new("connection-check", 0, ModelSourceKind.UserText, "你是什么模型？")], 512);
+            var review = provider.PrepareConnectionCheck(config.Model);
             var result = await provider.SendAsync(review, provider.Approve(review, ConsentMode.Each), timeout.Token);
             if (!result.Ok) { Status = $"{result.Error!.Code}：{result.Error.Message}"; return; }
             var reply = result.Value!;
-            var inconsistentIdentity = reply.Text.Contains("ChatGPT", StringComparison.OrdinalIgnoreCase) ||
+            var inconsistentIdentity = reply.Text.Contains("GPT", StringComparison.OrdinalIgnoreCase) ||
                 reply.Text.Contains("OpenAI", StringComparison.OrdinalIgnoreCase);
             Status = $"连接成功（接口已返回回复）\n请求地址：{review.Destination}\n请求模型：{review.Model}\n" +
+                $"接口返回模型：{reply.ReportedModel ?? "未提供有效标识"}（接口报告值）\n本次检测使用独立请求，不携带计划或课程对话。\n" +
                 (inconsistentIdentity ? "注意：回复提及 ChatGPT/OpenAI，与本次请求的 DeepSeek 服务不一致。模型自述不能作为身份认证。\n" :
                     "模型自述仅供参考，不作为服务商或底层版本的身份认证。\n") +
                 "\n模型原始回复：\n" + reply.Text +

@@ -54,6 +54,9 @@ public sealed class ModelConsent
 public sealed class ModelEgress(IModelProvider provider, IModelCapabilitySource? capabilities = null)
 {
     private readonly object gate = new();
+    // A fresh reviewed snapshot on every click; never accepts caller history.
+    public ModelReview PrepareConnectionCheck(string model) =>
+        Prepare(model, [new("connection-check", 0, ModelSourceKind.UserText, "你是什么模型？")], 512);
     public async Task<ModelReview> PrepareAdaptiveAsync(string model, IEnumerable<ModelSource> sources, bool plan, CancellationToken ct = default)
     {
         var capability = capabilities is null ? AdaptiveBudgetPolicy.Conservative(model, DateTimeOffset.UtcNow) : await capabilities.GetAsync(model, ct);

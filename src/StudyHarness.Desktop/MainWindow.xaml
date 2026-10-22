@@ -198,7 +198,7 @@
                                                 <DataTemplate>
                                                     <Border Style="{StaticResource DsSoftPanel}" Padding="11,8" Margin="0,4">
                                                         <DockPanel LastChildFill="True">
-                                                            <Button DockPanel.Dock="Right" Content="×" Click="RemoveMaterial_Click" AutomationProperties.AutomationId="RemoveMaterial" AutomationProperties.Name="删除资料与扫描缓存" ToolTip="删除PDF资料及扫描缓存；保留原文件和已生成课文。其他资料仅移除当前引用。" Style="{StaticResource GhostButton}" Padding="8,2"/>
+                                                            <Button DockPanel.Dock="Right" Content="×" Click="RemoveMaterial_Click" AutomationProperties.AutomationId="RemoveMaterial" AutomationProperties.Name="从本次计划移除资料" ToolTip="仅移出本次计划；保留原文件和扫描结果，重新添加同一文件无需重复扫描已完成页。" Style="{StaticResource GhostButton}" Padding="8,2"/>
                                                             <Button DockPanel.Dock="Right" Content="继续扫描" Click="ContinueMaterialScan_Click" Visibility="{Binding NeedsScan,Converter={StaticResource VisibleWhenTrue}}" IsEnabled="{Binding DataContext.CanOperate,RelativeSource={RelativeSource AncestorType=ItemsControl}}" AutomationProperties.AutomationId="ContinueMaterialScan" Style="{StaticResource GhostButton}" Padding="8,2"/>
                                                             <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Foreground="{StaticResource DsPrimaryBrush}" FontSize="12.5" VerticalAlignment="Center"/>
                                                         </DockPanel>
@@ -233,7 +233,7 @@
                         <Expander Header="完整外发内容" IsExpanded="True" Margin="0,14,0,0">
                             <StackPanel>
                                 <TextBlock Text="发送前可以在这里核对将要交给 DeepSeek 的全部内容。" Style="{StaticResource DsSmall}" Margin="0,0,0,10"/>
-                                <TextBox Text="{Binding Preview,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MinHeight="90" MaxHeight="280" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="PlanPreview" FontFamily="{StaticResource DsMonoFont}" FontSize="12" Background="{StaticResource DsSurfaceAltBrush}"/>
+                                <TextBox Text="{Binding Preview,Mode=OneWay}" IsReadOnly="True" IsUndoEnabled="False" TextWrapping="Wrap" MinHeight="90" MaxHeight="280" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="PlanPreview" FontFamily="{StaticResource DsMonoFont}" FontSize="12" Background="{StaticResource DsSurfaceAltBrush}"/>
                             </StackPanel>
                         </Expander>
 
@@ -256,7 +256,7 @@
                                     <TextBlock Text="计 划 正 文" Style="{StaticResource DsSectionLabel}"/>
                                     <TextBlock Text="确认前请完整核对目标、节奏与来源。" Style="{StaticResource DsCaption}" HorizontalAlignment="Right"/>
                                 </Grid>
-                                <TextBox Text="{Binding Summary,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MinHeight="140" MaxHeight="420" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="PlanSummary" Background="{StaticResource DsSurfaceAltBrush}" BorderBrush="{StaticResource DsBorderBrush}" Padding="16"/>
+                                <TextBox Text="{Binding Summary,Mode=OneWay}" IsReadOnly="True" IsUndoEnabled="False" TextWrapping="Wrap" MinHeight="140" MaxHeight="420" VerticalScrollBarVisibility="Auto" AutomationProperties.AutomationId="PlanSummary" Background="{StaticResource DsSurfaceAltBrush}" BorderBrush="{StaticResource DsBorderBrush}" Padding="16"/>
                             </StackPanel>
                         </Border>
 
@@ -408,7 +408,7 @@
                                     </Border>
                                     <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                                         <TextBlock Text="连接检测" Style="{StaticResource DsH2}"/>
-                                        <TextBlock Text="向 DeepSeek 发送「你是什么模型？」，确认密钥与模型可用。" Style="{StaticResource DsCaption}" Margin="0,3,0,0"/>
+                                        <TextBlock Text="每次独立发送「你是什么模型？」，不携带课程或计划对话。连接结果与模型自述分开展示。" Style="{StaticResource DsCaption}" Margin="0,3,0,0"/>
                                     </StackPanel>
                                 </StackPanel>
                                 <Border Style="{StaticResource DsSoftPanel}" Margin="0,0,0,14">
