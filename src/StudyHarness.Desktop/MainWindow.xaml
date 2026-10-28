@@ -429,6 +429,19 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Style="{StaticResource DsCard}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <TextBlock Text="数据位置" Style="{StaticResource DsH2}"/>
+                                <TextBlock Text="{Binding DataLocation}" TextWrapping="Wrap" Style="{StaticResource DsSmall}" Margin="0,10,0,0" AutomationProperties.AutomationId="DataLocation"/>
+                                <TextBlock Text="课程、作答、设置和内部扫描缓存随数据目录保存。迁移保留原目录；外部教材及独立资料库不搬动。" TextWrapping="Wrap" Style="{StaticResource DsCaption}" Margin="0,8,0,12"/>
+                                <WrapPanel>
+                                    <Button Content="迁移当前数据…" Click="MoveData_Click" IsEnabled="{Binding CanChangeDataDirectory}" Style="{StaticResource SecondaryButton}" Margin="0,0,10,8" AutomationProperties.AutomationId="MoveDataDirectory"/>
+                                    <Button Content="切换已有数据…" Click="SwitchData_Click" IsEnabled="{Binding CanChangeDataDirectory}" Style="{StaticResource SecondaryButton}" Margin="0,0,10,8" AutomationProperties.AutomationId="SwitchDataDirectory"/>
+                                    <Button Content="取消待生效更改" Click="CancelDataChange_Click" IsEnabled="{Binding CanChangeDataDirectory}" Style="{StaticResource GhostButton}" Margin="0,0,0,8"/>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding DataDirectoryStatus}" TextWrapping="Wrap" Style="{StaticResource DsCaption}"/>
+                            </StackPanel>
+                        </Border>
                         <Border Style="{StaticResource DsCardFlat}" Background="{StaticResource DsSurfaceAltBrush}" Margin="0,16,0,0" Padding="20,16">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE72E;" Style="{StaticResource DsIconGlyph}" FontSize="13" Foreground="{StaticResource DsMutedBrush}"/>

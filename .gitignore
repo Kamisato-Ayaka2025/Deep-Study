@@ -8,3 +8,4 @@ artifacts/
 *.db-*
 *.secret
 .env*
+data/

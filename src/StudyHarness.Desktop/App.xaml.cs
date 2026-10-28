@@ -13,22 +13,39 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
         // Composition root only; views never access the database or credentials.
-        var root = Environment.GetEnvironmentVariable("STUDYHARNESS_DATA_ROOT")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StudyHarness");
+        var locationCheck = e.Args.Contains("--p29-selfcheck");
+        var locationEvidence = locationCheck ? e.Args[Array.IndexOf(e.Args, "--evidence") + 1] : null;
+        var environmentRoot = Environment.GetEnvironmentVariable("STUDYHARNESS_DATA_ROOT");
+        if (locationCheck && (environmentRoot is null || !File.Exists(Path.Combine(environmentRoot, "p29-synthetic.marker"))))
+        { Shutdown(1); return; }
+        var locations = new DataDirectorySettings(AppContext.BaseDirectory,
+            locationCheck ? Path.Combine(locationEvidence!, "preferences") : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), environmentRoot);
+        var root = "";
+        Window? transferWindow = null;
+        System.ComponentModel.CancelEventHandler blockTransferClose = (_, args) => args.Cancel = true;
         try
         {
-            root = Path.GetFullPath(root);
+            root = locations.Resolve();
+            instance = new Mutex(true, DataDirectorySettings.MutexName(root), out var owns);
+            if (!owns) { MessageBox.Show("此数据目录已有Study Harness在运行。", "Study Harness"); Shutdown(1); return; }
+            if (locations.Read()?.CopyPending == true)
+            {
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                transferWindow = new Window { Title = "Deep Study · 迁移数据", Width = 440, Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterScreen, ResizeMode = ResizeMode.NoResize,
+                    Content = new System.Windows.Controls.TextBlock { Text = "正在复制并校验学习数据，请稍候。\n原目录保留，完成后打开课程。", Margin = new Thickness(24), TextWrapping = TextWrapping.Wrap } };
+                transferWindow.Closing += blockTransferClose;
+                transferWindow.Show();
+            }
+            await locations.ApplyPendingAsync();
             Directory.CreateDirectory(root);
             Directory.CreateDirectory(Path.Combine(root, "knowledge"));
-            var mutexName = "Local\\StudyHarness-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(root).ToUpperInvariant())));
-            instance = new Mutex(true, mutexName, out var owns);
-            if (!owns) { MessageBox.Show("此数据目录已有Study Harness在运行。", "Study Harness"); Shutdown(1); return; }
             var store = new SqliteSettingsStore(root);
             var webSources = new DeepSeekWebSources(store, DeepSeekWebSources.CreateClient());
             var knowledge = new KnowledgeStore(root, webSources);
             var service = new SettingsService(store, knowledge);
             var capabilities = new DeepSeekCapabilities(root, store, DeepSeekCapabilities.CreateClient());
-            var vm = new ShellViewModel(service, new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient())), new SafeLog(Path.Combine(root, "logs", "operations.jsonl")), Path.GetFullPath(root));
+            var vm = new ShellViewModel(service, new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient())), new SafeLog(Path.Combine(root, "logs", "operations.jsonl")), Path.GetFullPath(root), locations);
             var workspace = new WorkspaceViewModel(new WorkspaceService(knowledge, service,
                 new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient()))),
                 new OcrService(knowledge, service, capabilities, new DeepSeekOcrProvider(store, DeepSeekProvider.CreateClient())),
@@ -53,9 +70,14 @@ public partial class App : System.Windows.Application
                 () => new TutoringSession(plans, learning, learning, service, new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient()))),
                 new TutoringFiles(), new SqliteSubjectLifecycle(root));
             MainWindow.Show();
+            if (transferWindow is not null) { transferWindow.Closing -= blockTransferClose; transferWindow.Close(); transferWindow = null; }
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             tray = new TrayLifetime(MainWindow, () => Shutdown());
             await ((MainWindow)MainWindow).Ready.Task;
+            if (locationCheck)
+            {
+                await P29DesktopCheck.RunAsync(root, locationEvidence!, locations); return;
+            }
             if (e.Args.Contains("--p23-selfcheck"))
             {
                 await P23DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1]); return;
@@ -147,6 +169,17 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
+            if (locationCheck)
+            { File.WriteAllText(Path.Combine(locationEvidence!, "startup-failure.txt"), ex.ToString()); Shutdown(1); return; }
+            if (transferWindow is not null) { transferWindow.Closing -= blockTransferClose; transferWindow.Close(); }
+            try
+            {
+                if (locations.Read()?.PreviousPath is { } previous && MessageBox.Show(
+                    "所选数据目录未能打开或迁移未完成，原数据已保留。是否撤销目录更改，下次启动恢复原目录？",
+                    "Deep Study · 数据目录", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                { locations.CancelChange(previous); Shutdown(1); return; }
+            }
+            catch (Exception) { /* Keep the original startup failure; never fall back to an empty database. */ }
             if (e.Args.Contains("--p14-selfcheck") && File.Exists(Path.Combine(root,"p14-synthetic.marker")))
             {
                 File.WriteAllText(Path.Combine(root,"startup-failure.txt"),ex.ToString()); Shutdown(1); return;

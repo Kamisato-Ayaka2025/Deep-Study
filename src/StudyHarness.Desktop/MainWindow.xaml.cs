@@ -126,6 +126,21 @@ public partial class MainWindow : Window
         if (await vm.SaveAsync(key)) ApiKey.Clear();
     }
     private async void Reload_Click(object sender, RoutedEventArgs e) { ApiKey.Clear(); vm.DiscardPendingApiKey(); await vm.LoadAsync(); }
+    private async void MoveData_Click(object sender, RoutedEventArgs e) => await ChooseDataDirectoryAsync(true);
+    private async void SwitchData_Click(object sender, RoutedEventArgs e) => await ChooseDataDirectoryAsync(false);
+    private async void CancelDataChange_Click(object sender, RoutedEventArgs e) => await vm.CancelDataDirectoryChangeAsync();
+    private async Task ChooseDataDirectoryAsync(bool copy)
+    {
+        if (!vm.CanChangeDataDirectory || !vm.CanLeaveSettings()) return;
+        var picker = new OpenFolderDialog { Title = copy ? "选择用于迁移的空目录" : "选择已有学习数据目录" };
+        if (picker.ShowDialog(this) != true) return;
+        if (!ConfirmDialog.Ask(this, copy ? "迁移当前数据" : "切换已有数据",
+            (copy ? "下次启动时复制并校验当前课程、设置和内部缓存，原目录保留。外部教材和独立资料库仍使用原位置。" :
+                "下次启动使用所选目录中的课程与设置；当前数据不移动，也不与目标数据合并。") +
+            "\n\n目标：" + picker.FolderName + "\n\n保存后请从托盘退出，再用原入口重新打开。",
+            "保存目录选择", subtitle: "Deep Study · 数据位置")) return;
+        await vm.ChangeDataDirectoryAsync(picker.FolderName, copy);
+    }
     private void ApiKey_PasswordChanged(object sender, RoutedEventArgs e) => vm.SetPendingApiKey(ApiKey.Password.Length != 0);
     private async void Probe_Click(object sender, RoutedEventArgs e) => await vm.CheckConnectionAsync();
     private async void ImportFolder_Click(object sender, RoutedEventArgs e)

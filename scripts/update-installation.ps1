@@ -6,11 +6,11 @@ if (-not $InstallDirectory) { $InstallDirectory = Read-Host 'Path to the OLD fol
 $install = [IO.Path]::GetFullPath($InstallDirectory.Trim().Trim('"')).TrimEnd('\')
 $payload = Join-Path $PSScriptRoot 'payload'
 $manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'upgrade-files.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($manifest.version -ne '1.10.0') { throw 'Unexpected upgrade manifest version.' }
+if ($manifest.version -ne '1.11.0') { throw 'Unexpected upgrade manifest version.' }
 if (Get-Process -Name 'StudyHarness.Desktop' -ErrorAction SilentlyContinue) { throw 'Exit Deep Study from its tray icon before upgrading. No files changed.' }
 if (-not (Test-Path -LiteralPath (Join-Path $install 'StudyHarness.Desktop.exe') -PathType Leaf)) { throw 'Select the old application folder, not a data folder or the upgrade package.' }
 $oldVersion = [Reflection.AssemblyName]::GetAssemblyName((Join-Path $install 'StudyHarness.Desktop.dll')).Version.ToString(3)
-if ($oldVersion -notin @('1.6.0','1.6.2','1.10.0')) { throw "Unsupported installed version: $oldVersion. This package supports 1.6.0 and 1.6.2 (and retrying 1.10.0)." }
+if ($oldVersion -notin @('1.6.0','1.6.2','1.10.0','1.11.0')) { throw "Unsupported installed version: $oldVersion. This package supports 1.6.0, 1.6.2 and 1.10.0 (and retrying 1.11.0)." }
 if ($install.Equals($PSScriptRoot,[StringComparison]::OrdinalIgnoreCase) -or $install.StartsWith($PSScriptRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Extract the upgrade into a separate folder outside the old application.' }
 
 function Assert-NoLink([string]$Path) {
@@ -65,7 +65,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $payload $entry.path) -Destination $target -Force
         if ((Get-FileHash -LiteralPath $target).Hash -ne $entry.sha256) { throw "Installed checksum failed: $($entry.path)" }
     }
-    @{from=$oldVersion;to='1.10.0';files=$entries.Count;dataModified=$false} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'upgrade-result.json') -Encoding UTF8
+    @{from=$oldVersion;to='1.11.0';files=$entries.Count;dataModified=$false} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'upgrade-result.json') -Encoding UTF8
 } catch {
     $failure = $_
     $rollbackErrors = New-Object 'Collections.Generic.List[string]'
@@ -82,6 +82,6 @@ try {
     if ($rollbackErrors.Count) { throw "Upgrade failed and $($rollbackErrors.Count) program files could not be restored. Close other programs and restore the program-file backup at $backup. Data files were not touched. Original failure: $failure" }
     throw $failure
 }
-Write-Output "Upgraded $oldVersion to 1.10.0. Existing data and launchers are unchanged."
+Write-Output "Upgraded $oldVersion to 1.11.0. Existing data and launchers are unchanged."
 Write-Output "Application-file backup: $backup"
 Write-Output 'Start Deep Study with your usual shortcut or launcher, using the same Windows account.'

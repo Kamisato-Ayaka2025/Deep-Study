@@ -5,7 +5,7 @@ using StudyHarness.Application;
 using StudyHarness.Contracts;
 using StudyHarness.Infrastructure;
 namespace StudyHarness.Desktop;
-public sealed class ShellViewModel(SettingsService service, ModelEgress provider, SafeLog log, string? dataRoot = null) : INotifyPropertyChanged
+public sealed class ShellViewModel(SettingsService service, ModelEgress provider, SafeLog log, string? dataRoot = null, DataDirectorySettings? directories = null) : INotifyPropertyChanged
 {
     private string model = "deepseek-chat", status = "学习数据保存在本机。";
     private GenerationMode generationMode;
@@ -16,7 +16,7 @@ public sealed class ShellViewModel(SettingsService service, ModelEgress provider
     public GenerationMode GenerationMode { get => generationMode; set { generationMode = value; Notify(); } }
     public ConsentMode ConsentMode { get => consentMode; set { consentMode = value; Notify(); } }
     public bool HasApiKey { get => hasApiKey; private set { hasApiKey = value; Notify(); Notify(nameof(CredentialStatus)); } }
-    public bool Busy { get => busy; private set { busy = value; Notify(); Notify(nameof(CanSave)); } }
+    public bool Busy { get => busy; private set { busy = value; Notify(); Notify(nameof(CanSave)); Notify(nameof(CanChangeDataDirectory)); } }
     public bool CanSave => !Busy;
     public string CredentialStatus => hasPendingApiKey ? "新密钥尚未保存 · 请点击保存设置；输入不会立即替换已保存凭据" : HasApiKey ? "已保存加密密钥 · 自动使用，无需重复输入（有效性以真实连接结果为准）" : "尚未保存密钥";
     public void SetPendingApiKey(bool pending) { hasPendingApiKey = pending; Notify(nameof(CredentialStatus)); }
@@ -28,6 +28,32 @@ public sealed class ShellViewModel(SettingsService service, ModelEgress provider
         return false;
     }
     public string DataLocation => dataRoot is null ? "" : $"当前数据目录：{dataRoot}";
+    public bool CanChangeDataDirectory => directories is not null && dataRoot is not null && !Busy;
+    private string dataDirectoryStatus = "新安装默认使用程序旁的 data 文件夹；已有数据继续沿用原位置。";
+    public string DataDirectoryStatus { get => dataDirectoryStatus; private set { dataDirectoryStatus = value; Notify(); } }
+    public async Task<bool> ChangeDataDirectoryAsync(string target, bool copy)
+    {
+        if (!CanChangeDataDirectory || !CanLeaveSettings()) return false;
+        Busy = true;
+        try
+        {
+            await Task.Run(() => directories!.Schedule(dataRoot!, target, copy));
+            DataDirectoryStatus = $"下次启动将{(copy ? "迁移当前数据至" : "切换至")}：{DataDirectorySettings.Normalize(target)}\n本次仍使用当前目录。请从托盘退出程序，再用原入口重新打开。";
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or System.ComponentModel.Win32Exception)
+        { DataDirectoryStatus = "未更改目录。迁移请选择独立的可写空目录；切换请选择已有数据目录。原数据保持不变。"; return false; }
+        finally { Busy = false; }
+    }
+    public async Task CancelDataDirectoryChangeAsync()
+    {
+        if (!CanChangeDataDirectory || !CanLeaveSettings()) return;
+        Busy = true;
+        try { await Task.Run(() => directories!.CancelChange(dataRoot!)); DataDirectoryStatus = "已取消待生效的目录更改，继续使用当前目录。"; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        { DataDirectoryStatus = "目录选择保存失败，请重试；本次仍使用当前目录。"; }
+        finally { Busy = false; }
+    }
     public string Status { get => status; private set { status = value; Notify(); } }
     public long Revision { get; private set; }
     public async Task LoadAsync()
