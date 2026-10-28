@@ -358,6 +358,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
             var p = document.Candidate; var graph = PlanRules.Graph(draft.Id, p);
             Summary = $"{p.Title}\n目标：{p.Goal}\n基础：{p.Background}\n范围：{p.Scope}；每周{StudyHarness.Domain.WeeklyStudyTime.Format(p.WeeklyMinutes)}\n\n" +
                 (p.Strategy is { } strategy ? $"主题：{strategy.Domain}\n策略：{string.Join("、", strategy.TeachingModes)}\n理由：{strategy.Reason}\n限制：{string.Join("；", strategy.Limitations)}\n待澄清：{string.Join("；", strategy.Clarifications)}\n\n" : "") + "默认值（可在确认前修正）：\n" + (p.Defaults.Count == 0 ? "无；已知信息不重复询问。" : string.Join("\n", p.Defaults.Select(d => $"{d.Field} = {d.Value}（{d.Reason}）"))) +
+                "\n\n教学覆盖与节奏：\n" + PlanTeachingCoverage.Describe(document) +
                 "\n\n待澄清：\n" + (p.Clarifications.Count == 0 ? "无" : string.Join("\n", p.Clarifications)) +
                 "\n\n限制：\n" + string.Join("\n", p.Limitations) + "\n实验仅交付材料，由你自行编写与测评；软件不运行代码。\n\n周安排：\n" +
                 string.Join("\n", document.Weeks.Select(w => $"第{w.Index}周：{string.Join("、", w.NodeKeys)}，预计{w.EstimatedMinutes}分钟")) +

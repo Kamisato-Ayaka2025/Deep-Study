@@ -13,6 +13,7 @@ namespace StudyHarness.Infrastructure;
 // One normalized database per library. Historical versions and original text remain immutable.
 internal sealed partial class CollectionStore(string root, Guid libraryId)
 {
+    private const string PdfVisualVersion = "pdf-visual-v2";
     private string Database => Path.Combine(root, "collections.db");
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     private static Guid Identity(string value) => new(SHA256.HashData(Encoding.UTF8.GetBytes(value))[..16]);
@@ -62,30 +63,46 @@ internal sealed partial class CollectionStore(string root, Guid libraryId)
         }
         return string.Join(' ', tokens);
     }
-    public CollectionSnapshot Import(string path, CancellationToken ct)
+    public CollectionSnapshot Import(string path, CancellationToken ct, IProgress<ImportProgress>? progress = null)
     {
         using var pin = SafeKnowledgeFiles.PinDirectory(root);
         using var dbPin = File.Exists(Database) ? SafeKnowledgeFiles.PinExistingFile(Database) : null;
-        using var source = SafeKnowledgeFiles.OpenRead(path, Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase) ? 512L * 1024 * 1024 : 32L * 1024 * 1024);
+        using var source = SafeKnowledgeFiles.OpenRead(path, Path.GetExtension(path).ToLowerInvariant() is ".pdf" or ".ppt" or ".pptx" ? 512L * 1024 * 1024 : 32L * 1024 * 1024);
         if (File.Exists(Database) && new FileInfo(Database).Length > 2L * 1024 * 1024 * 1024 - 128L * 1024 * 1024) throw new IOException("Collection cache budget");
-        var fingerprint = Convert.ToHexString(SHA256.HashData(source.Stream)); source.Stream.Position = 0;
+        progress?.Report(new(0, 0, "正在校验文件并查找已有扫描缓存，可取消。"));
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var hashBuffer = new byte[1024 * 1024]; int readCount;
+        while ((readCount = source.Stream.Read(hashBuffer)) > 0) { ct.ThrowIfCancellationRequested(); hasher.AppendData(hashBuffer, 0, readCount); }
+        var fingerprint = Convert.ToHexString(hasher.GetHashAndReset()); source.Stream.Position = 0;
         var pdf = Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase);
-        var snapshotVersion = Hash(fingerprint + "/" + SemanticChunker.Version);
+        var presentation = Path.GetExtension(path).ToLowerInvariant() is ".ppt" or ".pptx";
+        var snapshotVersion = Hash(fingerprint + "/" + SemanticChunker.Version + (pdf ? "/" + PdfVisualVersion : presentation ? "/" + PresentationReader.Version : ""));
         var id = Identity(Path.GetFullPath(path).ToUpperInvariant());
         using var db = Open();
+        CollectionSnapshot? previousPdf = null;
         using (var existing = db.CreateCommand())
         {
             existing.CommandText = "SELECT json FROM collections WHERE id=$id"; existing.Parameters.AddWithValue("$id", id.ToString());
             if (existing.ExecuteScalar() is string json && JsonSerializer.Deserialize<SourceCollection>(json, Wire.Options) is { } previous && previous.SourceFingerprint == fingerprint)
-                return Reindex(db, previous, ct);
+            {
+                var snapshot = Snapshot(db, previous);
+                if (presentation ? snapshot.Manifest.Entries.All(e => e.QualityFlags.Contains(PresentationReader.Version)) : !pdf || snapshot.Manifest.Entries.All(e => e.QualityFlags.Contains(PdfVisualVersion)))
+                {
+                    progress?.Report(new(snapshot.Manifest.Entries.Count, snapshot.Manifest.Entries.Count, "文件未变化，正在复用已保存结果。"));
+                    return Reindex(db, previous, ct);
+                }
+                previousPdf = snapshot;
+                snapshotVersion = Hash(snapshotVersion + "/" + previous.Version);
+            }
         }
         var entries = new List<CollectionEntry>(); var chunks = new List<CollectionChunk>(); long characters = 0;
-        void Add(string key, string locator, string heading, string text, int? page)
+        void Add(string key, string locator, string heading, string text, int? page, bool visual = false, CollectionEntry? retained = null)
         {
             characters += text.Length;
             if (characters > 32L * 1024 * 1024 || entries.Count >= 10000) throw new InvalidDataException("Collection extraction budget");
-            entries.Add(new(key, locator, heading, text.Length == 0 ? "discovered" : "textReady", text.Length == 0 ? null : Hash(text), null,
-                text.Length == 0 ? ["ocrRequired", "visualReviewRequired"] : []));
+            var flags = retained?.QualityFlags ?? (text.Length == 0 || visual ? ["ocrRequired", "visualReviewRequired"] : Array.Empty<string>());
+            entries.Add(new(key, locator, heading, retained?.State ?? (text.Length == 0 || visual ? "discovered" : "textReady"), text.Length == 0 ? null : Hash(text), null,
+                pdf ? flags.Append(PdfVisualVersion).Distinct().ToArray() : presentation ? flags.Append(PresentationReader.Version).Distinct().ToArray() : flags));
             foreach (var slice in SemanticChunker.Split(text))
             {
                 var start = slice.Start; var body = text[slice.Start..slice.End]; var hash = Hash(body);
@@ -95,11 +112,54 @@ internal sealed partial class CollectionStore(string root, Guid libraryId)
                 chunks.Add(new(node, version, key, hash, start, start + body.Length, body, reference));
             }
         }
-        if (pdf)
+        if (presentation)
         {
+            var slides = Path.GetExtension(path).Equals(".ppt", StringComparison.OrdinalIgnoreCase)
+                ? PowerPointBridge.ReadLegacy(source.Stream, ct) : PresentationReader.Read(source.Stream, ct);
+            foreach (var slide in slides)
+            {
+                ct.ThrowIfCancellationRequested();
+                Add("page-" + slide.Number, slide.Number.ToString(), slide.Title, slide.Text, slide.Number, slide.Visual);
+                progress?.Report(new(slide.Number, slides.Count, $"已提取幻灯片 {slide.Number}/{slides.Count} 的文字、表格与备注。"));
+            }
+        }
+        else if (pdf)
+        {
+            var retainedEntries = previousPdf?.Manifest.Entries.Where(e => e.State == "ocrReady").ToDictionary(e => e.Key) ?? [];
+            var retainedText = new Dictionary<string, StringBuilder>();
+            if (previousPdf is not null)
+            {
+                using var read = db.CreateCommand();
+                read.CommandText = "SELECT entry_key,text FROM chunks WHERE collection_id=$id AND version=$version ORDER BY entry_key,start";
+                read.Parameters.AddWithValue("$id", id.ToString()); read.Parameters.AddWithValue("$version", previousPdf.Collection.Version);
+                using var reader = read.ExecuteReader();
+                while (reader.Read())
+                {
+                    ct.ThrowIfCancellationRequested(); var key = reader.GetString(0);
+                    if (!retainedEntries.ContainsKey(key)) continue;
+                    if (!retainedText.TryGetValue(key, out var body)) retainedText[key] = body = new StringBuilder();
+                    body.Append(reader.GetString(1));
+                }
+            }
             using var document = PdfDocument.Open(source.Stream);
             if (document.NumberOfPages > 2000) throw new InvalidDataException("PDF page budget");
-            foreach (var page in document.GetPages()) { ct.ThrowIfCancellationRequested(); Add("page-" + page.Number, page.Number.ToString(), "第" + page.Number + "页", ContentOrderTextExtractor.GetText(page).Trim(), page.Number); }
+            progress?.Report(new(0, document.NumberOfPages, "正在准备PDF页；已扫描页直接复用，不重复识别。"));
+            for (var number = 1; number <= document.NumberOfPages; number++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var key = "page-" + number;
+                if (retainedEntries.TryGetValue(key, out var retained) && retainedText.TryGetValue(key, out var saved) && saved.Length > 0)
+                {
+                    Add(key, number.ToString(), retained.Heading, saved.ToString(), number, retained: retained);
+                    progress?.Report(new(number, document.NumberOfPages, $"本地准备 {number}/{document.NumberOfPages} 页：已复用扫描缓存。"));
+                    continue;
+                }
+                progress?.Report(new(number - 1, document.NumberOfPages, $"正在检查第{number}页文字和图片，可取消。"));
+                var page = document.GetPage(number);
+                var text = ContentOrderTextExtractor.GetText(page).Trim();
+                Add(key, number.ToString(), "第" + number + "页", text, number, page.NumberOfImages > 0 || page.Paths.Count > 0);
+                progress?.Report(new(number, document.NumberOfPages, $"本地准备 {number}/{document.NumberOfPages} 页：文字和图片检查完成。"));
+            }
         }
         else
         {
@@ -117,16 +177,20 @@ internal sealed partial class CollectionStore(string root, Guid libraryId)
         }
         var directoryHash = Hash(Json(entries.Select(e => new { e.Key, e.Locator, e.Heading })));
         var manifest = new CoverageManifest(id, snapshotVersion, directoryHash, true, entries);
-        var collection = new SourceCollection(id, pdf ? "pdf" : "text", fingerprint, DateTimeOffset.UtcNow, Path.GetFileName(path), snapshotVersion, entries.Count, entries.Count(e => e.State == "textReady"));
+        var collection = new SourceCollection(id, pdf ? "pdf" : presentation ? "presentation" : "text", fingerprint, DateTimeOffset.UtcNow, Path.GetFileName(path), snapshotVersion, entries.Count, entries.Count(e => e.State is "textReady" or "ocrReady"));
+        ct.ThrowIfCancellationRequested();
+        progress?.Report(new(entries.Count, entries.Count, "本地页准备完成，正在保存目录与索引；尚未开始在线识别。"));
         using var tx = db.BeginTransaction();
         Execute(db, tx, "INSERT INTO collections VALUES($p0,$p1,$p2) ON CONFLICT(id) DO UPDATE SET json=excluded.json,path=excluded.path", id.ToString(), Path.GetFullPath(path), Json(collection));
         Execute(db, tx, "INSERT OR IGNORE INTO collection_versions VALUES($p0,$p1,$p2)", id.ToString(), snapshotVersion, Json(manifest));
         foreach (var entry in entries) Execute(db, tx, "INSERT OR IGNORE INTO entries VALUES($p0,$p1,$p2,$p3)", id.ToString(), snapshotVersion, entry.Key, Json(entry));
         foreach (var chunk in chunks)
         {
+            ct.ThrowIfCancellationRequested();
             Execute(db, tx, "INSERT OR IGNORE INTO chunks VALUES($p0,$p1,$p2,$p3,$p4,$p5,$p6,$p7,$p8,$p9)", chunk.Id.ToString(), chunk.VersionId.ToString(), id.ToString(), snapshotVersion, chunk.EntryKey, chunk.ContentHash, chunk.Start, chunk.End, chunk.Text, Json(chunk.Reference));
-            Execute(db, tx, "DELETE FROM chunk_fts WHERE id=$p0 AND version_id=$p1", chunk.Id.ToString(), chunk.VersionId.ToString());
-            Execute(db, tx, "INSERT INTO chunk_fts VALUES($p0,$p1,$p2)", chunk.Id.ToString(), chunk.VersionId.ToString(), Tokens(chunk.Text + " " + chunk.Reference.Locator.Heading));
+            using var changed = db.CreateCommand(); changed.Transaction = tx; changed.CommandText = "SELECT changes()";
+            if (Convert.ToInt32(changed.ExecuteScalar()) > 0)
+                Execute(db, tx, "INSERT INTO chunk_fts VALUES($p0,$p1,$p2)", chunk.Id.ToString(), chunk.VersionId.ToString(), Tokens(chunk.Text + " " + chunk.Reference.Locator.Heading));
         }
         foreach (var group in chunks.GroupBy(c => c.EntryKey)) SaveSummary(db, tx, snapshotVersion, group.Key, group.Select(c => c.ContentHash), group.First().Text);
         SaveIndex(db, tx, collection, chunks);
@@ -149,7 +213,7 @@ internal sealed partial class CollectionStore(string root, Guid libraryId)
         command.CommandText = "SELECT id,parent_hashes,text FROM summaries WHERE id LIKE $prefix"; command.Parameters.AddWithValue("$prefix", collection.Version + "/%");
         var summaries = new List<CollectionSummary>();
         using (var reader = command.ExecuteReader()) while (reader.Read()) summaries.Add(new(reader.GetString(0)[(collection.Version.Length + 1)..], JsonSerializer.Deserialize<string[]>(reader.GetString(1), Wire.Options)!, reader.GetString(2)));
-        return new(collection with { ReadyCount = refs.Select(r => r.Locator.Block.Split(':')[0]).Distinct().Count() }, manifest, refs, summaries, ReadIndex(db, collection.Version));
+        return new(collection with { ReadyCount = manifest.Entries.Count(e => e.State is "textReady" or "ocrReady") }, manifest, refs, summaries, ReadIndex(db, collection.Version));
     }
     public IReadOnlyList<CollectionSnapshot> List()
     {

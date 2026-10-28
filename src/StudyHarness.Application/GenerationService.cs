@@ -111,8 +111,7 @@ public sealed class GenerationService(IPlanningStore planning, ILearningStore le
             if (sources.Count == 0)
                 text = text.Replace("schemaVersion=3", "schemaVersion=4").Replace("\"schemaVersion\":3", "\"schemaVersion\":4").Replace("\"sourceKeys\":[\"s1\"]", "\"sourceKeys\":[]") +
                     "\n本课没有外部原文，仅讲稳定基础知识；sourceKeys必须为空数组[]，schemaVersion=4。";
-            if (adaptive && materials.Any(m => m.Text.Contains("[宿主来源质量：OCR待复核；", StringComparison.Ordinal)))
-                text += "\n本课确含未复核OCR：开头简短声明。禁止复述图中具体数字、IP/MAC/IMSI示例、部件位置或连线；不能用“仅按可读文字整理/请复核”免责声明后再罗列这些内容。只使用连续正文支持的概念与类比，图示内容省略并留待原页复核。测验的正确项和干扰项解析都不能依赖这些图示细节。";
+            text += "\n" + CourseMaterials.OcrGuidance;
             var protocol = sources.Count == 0 ? "theory-v4" : "theory-v3";
             var snapshot = new[] { new ModelSource(adaptive ? protocol : protocol + "-short", sources.Count == 0 ? 4 : 3, ModelSourceKind.UserText, text) }.Concat(materials);
             try { reviews.Add(node.Key, adaptive ? await egress.PrepareAdaptiveAsync(config.Model, snapshot, false, ct) : egress.Prepare(config.Model, snapshot, 8192, true)); }

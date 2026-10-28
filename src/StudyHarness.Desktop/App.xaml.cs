@@ -6,6 +6,9 @@ namespace StudyHarness.Desktop;
 public partial class App : System.Windows.Application
 {
     private Mutex? instance;
+    private TrayLifetime? tray;
+    internal bool TryHideToTray(Window window) => tray?.TryHide(window) == true;
+    internal TrayLifetime Tray => tray ?? throw new InvalidOperationException("Tray not initialized");
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -50,7 +53,17 @@ public partial class App : System.Windows.Application
                 () => new TutoringSession(plans, learning, learning, service, new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient()))),
                 new TutoringFiles(), new SqliteSubjectLifecycle(root));
             MainWindow.Show();
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            tray = new TrayLifetime(MainWindow, () => Shutdown());
             await ((MainWindow)MainWindow).Ready.Task;
+            if (e.Args.Contains("--p23-selfcheck"))
+            {
+                await P23DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1]); return;
+            }
+            if (e.Args.Contains("--p17-selfcheck"))
+            {
+                await P17DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1]); return;
+            }
             if (e.Args.Contains("--p16-selfcheck"))
             {
                 await P16DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1], e.Args.Contains("--baseline")); return;
@@ -144,5 +157,5 @@ public partial class App : System.Windows.Application
             Shutdown(1);
         }
     }
-    protected override void OnExit(ExitEventArgs e) { instance?.Dispose(); base.OnExit(e); }
+    protected override void OnExit(ExitEventArgs e) { tray?.Dispose(); instance?.Dispose(); base.OnExit(e); }
 }

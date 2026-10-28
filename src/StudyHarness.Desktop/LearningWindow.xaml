@@ -46,7 +46,7 @@
 
             <!-- Left rail: outline, generation detail, history -->
             <Border Style="{StaticResource DsCard}" Padding="18,18,18,14">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer local:SmoothScroll.Enabled="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
                         <TextBlock Text="课 程 目 录" Style="{StaticResource DsSectionLabel}"/>
                         <TextBlock Text="单击切换本课；切换不会丢失已生成内容。" Style="{StaticResource DsCaption}" Margin="0,6,0,10"/>

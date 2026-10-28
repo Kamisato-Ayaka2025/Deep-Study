@@ -56,3 +56,13 @@ input{margin-right:0}
 .token-string{color:#ffd89e}
 .token-number{color:#d6c0ff}
 ::selection{background:#dbe4ff}
+
+.lesson-figure{margin:20px 0;padding:16px;border:1px solid #dce1f4;border-radius:14px;background:#fff;overflow:auto}.lesson-figure svg{display:block;width:100%;min-width:460px;height:auto}.lesson-figure figcaption{text-align:center;margin-top:12px;color:#536181}.diagram-fallback{white-space:pre-wrap;overflow-wrap:anywhere}
+
+section.diagram{display:block}
+@media (prefers-reduced-motion: no-preference){
+ button{transition:background .15s ease,transform .12s ease,box-shadow .15s ease}
+ button:hover:enabled{transform:translateY(-1px);box-shadow:0 3px 9px #4563ff26}
+ button:active:enabled{transform:translateY(0);box-shadow:none}
+ .question label{transition:background .15s ease,border-color .15s ease}
+}

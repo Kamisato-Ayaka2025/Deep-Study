@@ -3,6 +3,10 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        if (args.Contains("--p25-preflight")) return P25Harness.Run(args).GetAwaiter().GetResult();
+        if (args.Contains("--p24-benchmark")) return P24Harness.Run(args).GetAwaiter().GetResult();
+        if (args.Contains("--p23-import")) return P23Harness.Run(args).GetAwaiter().GetResult();
+        if (args.Contains("--p22-import")) return P22Harness.Run(args).GetAwaiter().GetResult();
         if (args.Contains("--book-plan-replay")) return BookPlanReliabilityHarness.Replay(args);
         if (args.Contains("--book-plan-reliability")) return BookPlanReliabilityHarness.Run(args).GetAwaiter().GetResult();
         if (args.Contains("--p14-lesson-preview")) return P14Harness.LessonPreview(args).GetAwaiter().GetResult();

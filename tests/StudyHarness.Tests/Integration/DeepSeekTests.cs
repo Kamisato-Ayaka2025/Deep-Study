@@ -18,6 +18,20 @@ public sealed class DeepSeekTests
             return new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         }
     }
+    private sealed class PlanCaps : IModelCapabilitySource
+    { public Task<ModelCapabilities> GetAsync(string m, CancellationToken ct) => Task.FromResult(new ModelCapabilities(m, 1048576, 32768, false, DateTimeOffset.UtcNow, true)); }
+    [Theory]
+    [InlineData(450000, true)]
+    [InlineData(786433, false)]
+    public async Task ExpandedPlanningBudget_TransportAcceptsUsageWithinNewLimit(int tokens, bool accepted)
+    {
+        var body = JsonSerializer.Serialize(new { choices = new[] { new { message = new { content = "{}" }, finish_reason = "stop" } }, usage = new { prompt_tokens = tokens, completion_tokens = 6, total_tokens = tokens + 6 } });
+        using var handler = new Handler(HttpStatusCode.OK, body); using var client = new HttpClient(handler);
+        var gate = new ModelEgress(new DeepSeekProvider(new Key(), client), new PlanCaps());
+        var review = await gate.PrepareAdaptiveAsync("deepseek-chat", [new("planning-v2", 0, ModelSourceKind.UserText, new string('x', 450000))], true);
+        var result = await gate.SendAsync(review, gate.Approve(review, ConsentMode.Each));
+        Assert.Equal(accepted, result.Ok); Assert.Equal(1, handler.Calls);
+    }
     private const string Success = """{"choices":[{"message":{"content":"A variable stores a value."},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":6,"total_tokens":16}}""";
     [Theory]
     [InlineData("deepseek-chat", "deepseek-chat")]

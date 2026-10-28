@@ -13,6 +13,11 @@ public interface IOcrKnowledge
     Task SaveOcrAsync(Guid library, RenderedPage page, OcrPageResult result, CancellationToken ct);
     Task RecordOcrAttemptAsync(Guid library, RenderedPage page, string model, int attempt, DateTimeOffset started, string outcome, TokenUsage? usage);
 }
+public interface IStreamingPresentationKnowledge
+{
+    Task ProducePresentationPagesAsync(Guid library, Guid collection, string fingerprint, IReadOnlyList<int> pages,
+        Func<RenderedPage, CancellationToken, Task> publish, CancellationToken ct);
+}
 public sealed class ApprovedOcrPage
 {
     internal ApprovedOcrPage(string model, RenderedPage page) { Model = model; Page = page; }

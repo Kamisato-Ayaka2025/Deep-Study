@@ -88,7 +88,7 @@ public sealed class DeepSeekProvider(ICredentialReader credentials, HttpClient c
             {
                 var p = roundUsage.GetProperty("prompt_tokens").GetInt32(); var c = roundUsage.GetProperty("completion_tokens").GetInt32();
                 if (p < 0 || c < 0 || roundUsage.GetProperty("total_tokens").GetInt64() != (long)p + c ||
-                    (long)promptTokens + p > (request.Capabilities is null ? 200000 : 393216) || (long)completionTokens + c > request.MaxOutputTokens)
+                    (long)promptTokens + p > (request.Capabilities is null ? 200000 : request.Sources.FirstOrDefault()?.Id == "planning-v2" ? 786432 : 393216) || (long)completionTokens + c > request.MaxOutputTokens)
                     return Result<ProviderReply>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "模型用量无效或超出本次总预算。");
                 promptTokens += p; completionTokens += c;
             }

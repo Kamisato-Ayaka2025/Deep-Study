@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private readonly ITutoringFiles? tutorFiles;
     private readonly ISubjectLifecycle? lifecycle;
     private Window? lessonWindow;
+    internal bool CanExit() => vm.CanLeaveSettings();
     private CourseNodeView? selectedCourseNode;
     private double lastRouteWidth;
     private bool graphDirty = true, courseRefreshAgain;
@@ -76,7 +77,11 @@ public partial class MainWindow : Window
             if (CourseMap.IsVisible && !progressBusy && DateTimeOffset.UtcNow >= nextProgressRefresh) _ = RefreshProgressAsync();
         };
         scheduler.Start();
-        Closing += (_, e) => { if (!vm.CanLeaveSettings()) e.Cancel = true; };
+        Closing += (_, e) =>
+        {
+            if (System.Windows.Application.Current is App app && app.TryHideToTray(this)) { e.Cancel = true; return; }
+            if (!vm.CanLeaveSettings()) e.Cancel = true;
+        };
         Closed += (_, _) => { closed = true; scheduler.Stop(); schedulerLifetime.Cancel(); generation?.Stop(); workspace.Cancel(); planning.Cancel(); };
     }
     private async Task RunSchedulerAsync()
@@ -130,16 +135,18 @@ public partial class MainWindow : Window
     }
     private async void ImportFile_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = "学习资料|*.pdf;*.c;*.cpp", Multiselect = true };
-        if (dialog.ShowDialog(this) == true) { foreach (var file in dialog.FileNames) await workspace.ImportAsync(HostSelection.FromPlanFilePicker(file)); ShowImportResult(); }
+        var dialog = new OpenFileDialog { Filter = "学习资料|*.pdf;*.ppt;*.pptx;*.md;*.markdown;*.c;*.cpp", Multiselect = true };
+        if (dialog.ShowDialog(this) == true) { await workspace.ImportManyAsync(dialog.FileNames.Select(HostSelection.FromPlanFilePicker)); ShowImportResult(); }
     }
+    private async void ResumeImports_Click(object sender, RoutedEventArgs e) => await workspace.ResumeImportsAsync();
+    private void ClearImports_Click(object sender, RoutedEventArgs e) => workspace.ClearImportQueue();
     private void ShowImportResult()
     {
         planning.ReportImportStatus(workspace.Status);
     }
     private async void PreparePlan_Click(object sender, RoutedEventArgs e)
     {
-        if (workspace.Busy) { planning.ReportImportStatus("资料仍在导入或识别，请等待完成。" ); SubmissionFeedback.BringIntoView(); return; }
+        if (workspace.Busy || workspace.ImportQueueCount > 0) { planning.ReportImportStatus("导入队列尚未处理完，请继续队列或清空待处理项后再形成计划。" ); SubmissionFeedback.BringIntoView(); return; }
         if (planning.PendingCollections.Count > 0)
         {
             ImportExpander.IsExpanded = true;
@@ -457,9 +464,9 @@ public partial class MainWindow : Window
         if (node.Type == "lab")
         {
             if (labs is not null && CourseModel.ConfirmedSubject is { } labSubject)
-            { lessonWindow = new LabPreviewWindow(new LabViewModel(labs, labSubject, node.Key), tutoring?.Invoke(), tutorFiles, labSubject, node.Key) { Owner = this }; lessonWindow.Show(); }
+            { lessonWindow = new LabPreviewWindow(new LabViewModel(labs, labSubject, node.Key), tutoring?.Invoke(), tutorFiles, labSubject, node.Key); lessonWindow.Show(); }
         }
         else if (generation is not null && root is not null && CourseModel.ConfirmedSubject is { } subject)
-        { lessonWindow = new LearningWindow(generation, subject, node.Key, root, tutoring?.Invoke(), tutorFiles) { Owner = this }; lessonWindow.Show(); }
+        { lessonWindow = new LearningWindow(generation, subject, node.Key, root, tutoring?.Invoke(), tutorFiles); lessonWindow.Show(); }
     }
 }

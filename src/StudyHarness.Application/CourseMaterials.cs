@@ -4,12 +4,13 @@ namespace StudyHarness.Application;
 
 public static class CourseMaterials
 {
+    public const string OcrGuidance = "OCR是资料获取方式，不代表整页不可用。识别清楚且上下文一致的文字、公式、表格、图中标签、数字、位置与连线关系，正常用于讲解、例子和测验。仅限制实际标为[无法辨认]、[图示需人工复核]、缺失、矛盾或无法确定的局部内容：不得猜补，不得据该不确定部分确定答案或干扰项解释；同页其他清楚内容仍可使用。来源状态由宿主资料信息区展示，课文和测验中不输出[OCR未复核]、OCR待复核或整页不可用的泛化声明。确有必要时只说明影响本课的具体资料缺口。";
     public static string WithQuality(IReadOnlyList<PlanCollection>? collections, PlanSource source, string body)
     {
         body = SourceText.ForModel(source.Reference.Locator.SourceLabel, body);
         var pendingOcr = collections?.Any(c => c.LibraryId == source.Reference.LibraryId && c.References.Contains(source.Reference) &&
             c.Manifest.Entries.Any(e => e.State == "ocrReady" && source.Reference.Locator.Block.StartsWith(e.Key + ":", StringComparison.Ordinal))) == true;
-        return pendingOcr ? "[宿主来源质量：OCR待复核；图表标签、数字与位置关系未验证，不可据此编造事实或测验答案。]\n" + body : body;
+        return pendingOcr ? "[宿主来源类型：OCR]\n" + OcrGuidance + "\n" + body : body;
     }
     public static async Task<IReadOnlyList<PlanSource>> SelectAsync(IKnowledgeStore knowledge, PlanDocument plan, PlannedNode node, CancellationToken ct)
     {

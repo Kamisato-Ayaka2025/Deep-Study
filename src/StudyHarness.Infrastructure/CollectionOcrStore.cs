@@ -6,6 +6,16 @@ namespace StudyHarness.Infrastructure;
 
 internal sealed partial class CollectionStore
 {
+    internal string PresentationPath(Guid collection, string fingerprint)
+    {
+        using var pin = SafeKnowledgeFiles.PinDirectory(root); using var file = SafeKnowledgeFiles.PinExistingFile(Database); using var db = Open();
+        using var command = db.CreateCommand(); command.CommandText = "SELECT path,json FROM collections WHERE id=$id"; command.Parameters.AddWithValue("$id", collection.ToString());
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) throw new InvalidDataException("Unknown presentation");
+        var item = JsonSerializer.Deserialize<SourceCollection>(reader.GetString(1), Wire.Options)!;
+        if (item.SourceKind != "presentation" || item.SourceFingerprint != fingerprint) throw new InvalidDataException("Presentation changed");
+        return reader.GetString(0);
+    }
     public void RecordOcrAttempt(RenderedPage page, string model, int attempt, DateTimeOffset started, string outcome, TokenUsage? usage)
     {
         using var pin = SafeKnowledgeFiles.PinDirectory(root); using var filePin = SafeKnowledgeFiles.PinExistingFile(Database); using var db = Open();
@@ -20,10 +30,12 @@ internal sealed partial class CollectionStore
         string path; SourceCollection item;
         using (var reader = command.ExecuteReader())
         { if (!reader.Read()) throw new InvalidDataException("Unknown collection"); path = reader.GetString(0); item = JsonSerializer.Deserialize<SourceCollection>(reader.GetString(1), Wire.Options)!; }
-        if (item.SourceKind != "pdf") throw new InvalidDataException("PDF required");
+        if (item.SourceKind is not ("pdf" or "presentation")) throw new InvalidDataException("PDF required");
         var snapshot = Snapshot(db, item);
         var needed = pages.Where(p => snapshot.Manifest.Entries.Any(e => e.Key == "page-" + p && e.State != "textReady")).ToArray();
-        return await WindowsPdfRenderer.RenderAsync(path, collection, item.SourceFingerprint, needed, ct);
+        return item.SourceKind == "presentation"
+            ? await PowerPointBridge.RenderAsync(path, collection, item.SourceFingerprint, needed, ct)
+            : await WindowsPdfRenderer.RenderAsync(path, collection, item.SourceFingerprint, needed, ct);
     }
     public OcrPageResult? Cached(RenderedPage page, string model, string promptVersion)
     {
@@ -53,12 +65,29 @@ internal sealed partial class CollectionStore
             using var cached = db.CreateCommand(); cached.Transaction = tx;
             cached.CommandText = "SELECT count(*) FROM extraction_pages WHERE cache_key=$key";
             cached.Parameters.AddWithValue("$key", OcrKey(item.Page, item.Result.Model, item.Result.PromptVersion));
-            if ((long)cached.ExecuteScalar()! == 0) active.Add(item);
+            if ((long)cached.ExecuteScalar()! == 0)
+            {
+                var merged = item;
+                var entry = original.Entries.Single(e => e.Key == "page-" + item.Page.Page);
+                if (entry.State != "ocrReady" && entry.ContentHash is not null)
+                {
+                    using var native = db.CreateCommand(); native.Transaction = tx;
+                    native.CommandText = "SELECT text FROM chunks WHERE collection_id=$id AND version=$version AND entry_key=$key ORDER BY start";
+                    native.Parameters.AddWithValue("$id", collection.Id.ToString()); native.Parameters.AddWithValue("$version", collection.Version);
+                    native.Parameters.AddWithValue("$key", entry.Key);
+                    using var reader = native.ExecuteReader(); var body = new System.Text.StringBuilder();
+                    while (reader.Read()) body.Append(reader.GetString(0));
+                    var combined = (collection.SourceKind == "presentation" ? "# " + entry.Heading + "\n\n" : "") + "## 原生文字\n\n" + body + "\n\n## 页面视觉识别（含图表，待复核）\n\n" + item.Result.Text;
+                    if (combined.Length > 65536) throw new InvalidDataException("Combined PDF page text budget exceeded");
+                    merged = (item.Page, item.Result with { Text = combined });
+                }
+                active.Add(merged);
+            }
         }
         if (active.Count == 0) { tx.Commit(); return; }
         var byKey = active.ToDictionary(p => "page-" + p.Page.Page);
         var version = Hash(collection.Version + string.Join("/", active.Select(p => OcrKey(p.Page,p.Result.Model,p.Result.PromptVersion) + Hash(p.Result.Text))));
-        var entries = original.Entries.Select(e => byKey.TryGetValue(e.Key, out var item) ? e with { State = "ocrReady", ContentHash = Hash(item.Result.Text), Failure = null, QualityFlags = item.Result.QualityFlags } : e).ToArray();
+        var entries = original.Entries.Select(e => byKey.TryGetValue(e.Key, out var item) ? e with { State = "ocrReady", ContentHash = Hash(item.Result.Text), Failure = null, QualityFlags = e.QualityFlags.Where(f => f != "ocrRequired").Concat(item.Result.QualityFlags).Append(PdfVisualVersion).Distinct().ToArray() } : e).ToArray();
         var manifest = original with { Version = version, Entries = entries };
         var chunks = new List<(string Entry, int Start, int End, string Text, SourceRef Reference)>();
         command.CommandText = "SELECT entry_key,start,end,text,reference FROM chunks WHERE collection_id=$id AND version=$version";
@@ -96,8 +125,18 @@ internal sealed partial class CollectionStore
     }
 }
 
-public sealed partial class KnowledgeStore
+public sealed partial class KnowledgeStore : IStreamingPresentationKnowledge
 {
+    public async Task ProducePresentationPagesAsync(Guid library, Guid collection, string fingerprint, IReadOnlyList<int> pages,
+        Func<RenderedPage, CancellationToken, Task> publish, CancellationToken ct)
+    {
+        string path;
+        await mutex.WaitAsync(ct);
+        try { path = new CollectionStore(Locate(library).Root, library).PresentationPath(collection, fingerprint); }
+        finally { mutex.Release(); }
+        // Do not hold the database mutex while rendering: consumers must save pages concurrently.
+        await PowerPointBridge.ProduceAsync(path, collection, fingerprint, pages, publish, ct);
+    }
     public async Task RecordOcrAttemptAsync(Guid library, RenderedPage page, string model, int attempt, DateTimeOffset started, string outcome, TokenUsage? usage)
     {
         await mutex.WaitAsync();

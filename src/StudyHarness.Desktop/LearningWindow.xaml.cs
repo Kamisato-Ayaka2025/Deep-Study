@@ -49,14 +49,22 @@ public partial class LearningWindow : Window
         refresh.Tick += async (_, _) => await Model.SafeAsync(Model.RefreshAsync);
         Closed += (_, _) => { refresh.Stop(); Model.Close(); Tutor.CloseSession(); Reader.Dispose(); };
     }
+    private readonly Dictionary<string, (string Signature, Button Button)> outlineCache = new();
     private void RefreshOutline()
     {
         if (OutlinePanel is null) return;
         var selectedKey = Model.Selected?.Key;
-        OutlinePanel.Children.Clear();
+        var index = 0;
+        var keys = Model.Nodes.Select(n => n.Key).ToHashSet(StringComparer.Ordinal);
+        foreach (var key in outlineCache.Keys.Where(k => !keys.Contains(k)).ToArray()) outlineCache.Remove(key);
         foreach (var node in Model.Nodes)
         {
             var selected = node.Key == selectedKey;
+            var signature = node.Detail + "\0" + node.Label + "\0" + selected;
+            if (outlineCache.TryGetValue(node.Key, out var cached) && cached.Signature == signature)
+            {
+                Place(cached.Button); continue;
+            }
             var title = node.Detail.Split('\n')[0];
             var state = node.Label.Split(" · ").LastOrDefault() ?? "";
             var color = OutlineColor(state);
@@ -80,8 +88,16 @@ public partial class LearningWindow : Window
                 Tag = selected ? "selected" : null, HorizontalContentAlignment = HorizontalAlignment.Stretch
             };
             System.Windows.Automation.AutomationProperties.SetAutomationId(button, "Outline-" + node.Key);
-            button.Click += (_, _) => { if (Model.Selected?.Key != node.Key) Model.Selected = node; RefreshOutline(); };
-            OutlinePanel.Children.Add(button);
+            button.Click += (_, _) => { if (Model.Selected?.Key != node.Key) Model.Selected = Model.Nodes.FirstOrDefault(n => n.Key == node.Key); RefreshOutline(); };
+            outlineCache[node.Key] = (signature, button);
+            Place(button);
+        }
+        while (OutlinePanel.Children.Count > index) OutlinePanel.Children.RemoveAt(index);
+        void Place(Button button)
+        {
+            if (index < OutlinePanel.Children.Count && ReferenceEquals(OutlinePanel.Children[index], button)) { index++; return; }
+            OutlinePanel.Children.Remove(button);
+            OutlinePanel.Children.Insert(index++, button);
         }
     }
     private static string ShortState(string state) => state.Length > 22 ? state[..22] + "…" : state;

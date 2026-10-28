@@ -16,8 +16,9 @@ internal static class P14DesktopCheck
     private sealed class Ocr : IOcrProvider
     {
         public int Calls;
+        public int HoldAfterCalls;
         public async Task<Result<OcrPageResult>> RecognizeAsync(ApprovedOcrPage request,CancellationToken ct)
-        { Calls++; await Task.Delay(120,ct); return Result<OcrPageResult>.Success(new($"# 第{request.Page.Page}页\n网络由主机和链路组成。协议定义消息格式和通信规则。",[],new(100,20,120),request.Model,OcrService.PromptVersion)); }
+        { var call = Interlocked.Increment(ref Calls); if (HoldAfterCalls > 0 && call > HoldAfterCalls) await Task.Delay(Timeout.Infinite,ct); await Task.Delay(120,ct); return Result<OcrPageResult>.Success(new($"# 第{request.Page.Page}页\n网络由主机和链路组成。协议定义消息格式和通信规则。",[],new(100,20,120),request.Model,OcrService.PromptVersion)); }
     }
     public static async Task RunAsync(string root,string evidence)
     {
@@ -30,6 +31,12 @@ internal static class P14DesktopCheck
             Directory.CreateDirectory(evidence);
             var knowledge=new KnowledgeStore(root); var settings=new SettingsService(new SqliteSettingsStore(root)); var provider=new FakeProvider(); var ocr=new Ocr(); var cap=new Capabilities();
             var workspace=new WorkspaceViewModel(new(knowledge,settings,new(provider)),new(knowledge,settings,cap,ocr),new(knowledge,settings,cap,ocr));
+            var preparationProgressSeen = false; var initialIndeterminateSeen = false;
+            workspace.PropertyChanged += (_, _) =>
+            {
+                initialIndeterminateSeen |= workspace.ScanIndeterminate;
+                preparationProgressSeen |= workspace.ScanTotal > 0 && workspace.Status.Contains("本地准备");
+            };
             var planning=new PlanningViewModel(new(new SqlitePlanningStore(root),knowledge,settings,new(provider,cap),new PlanParser(),explicitSourcesOnly:true),sessionStore:new SqlitePlanningSessionStore(root));
             var shell=new ShellViewModel(settings,new(provider),new SafeLog(Path.Combine(root,"check.log")));
             var old=System.Windows.Application.Current.MainWindow; var window=new MainWindow(shell,workspace,planning);
@@ -54,7 +61,8 @@ internal static class P14DesktopCheck
             {
                 var pdf=new UglyToad.PdfPig.Writer.PdfDocumentBuilder(); for(var i=0;i<45;i++) pdf.AddPage(150,200); await File.WriteAllBytesAsync(path,pdf.Build());
                 var importing=workspace.ImportAsync(HostSelection.FromPlanFilePicker(path));
-                await Wait(() => workspace.ScanCompleted>=3);
+                await Wait(() => ocr.Calls >= 4 && workspace.ScanCompleted >= 3 && workspace.Status.StartsWith("第", StringComparison.Ordinal));
+                Check(initialIndeterminateSeen && preparationProgressSeen, "local-import-progress-visible-before-online-scan");
                 Check(workspace.Busy && Button("CancelPdfScan").IsEnabled,"cancel-enabled-while-running");
                 Click("CancelPdfScan"); await importing;
                 Check(workspace.ScanCompleted>=3 && workspace.ScanCompleted<45,"cancel-retains-partial-progress");
@@ -99,8 +107,12 @@ internal static class P14DesktopCheck
                 var partialPdf=new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
                 for(var page=0;page<8;page++) partialPdf.AddPage(160,210);
                 await File.WriteAllBytesAsync(partialPath,partialPdf.Build());
+                // Hold the next wave until cancellation, so this checks removal during
+                // active work regardless of scanner throughput or dispatcher timing.
+                ocr.HoldAfterCalls = ocr.Calls + 4;
                 var importing=workspace.ImportAsync(HostSelection.FromPlanFilePicker(partialPath));
-                await Wait(()=>workspace.ScanCompleted>=2);
+                await Wait(()=>ocr.Calls >= ocr.HoldAfterCalls && workspace.ScanCompleted >= 2 && workspace.Status.StartsWith("第", StringComparison.Ordinal));
+                await Wait(()=>Walk(window).OfType<Button>().Any(b=>System.Windows.Automation.AutomationProperties.GetAutomationId(b)=="RemoveMaterial"));
                 Check(Button("RemoveMaterial").IsEnabled,"delete-enabled-during-scan");
                 Click("RemoveMaterial"); await importing;
                 await Wait(()=>!workspace.Busy && workspace.Materials.Count==0);
@@ -108,6 +120,7 @@ internal static class P14DesktopCheck
                 Check(File.Exists(path),"delete-during-scan-retains-original");
                 var partial=workspace.Collections.Single(c=>c.Snapshot.Collection.Label=="partial.pdf").Snapshot.Collection;
                 Check(partial.ReadyCount>0 && partial.ReadyCount<8,"remove-retains-partial-scan-cache");
+                ocr.HoldAfterCalls = 0;
                 before=ocr.Calls;
                 await workspace.ImportAsync(HostSelection.FromPlanFilePicker(partialPath));
                 Check(ocr.Calls-before==8-partial.ReadyCount,"reimport-partial-only-missing-pages");

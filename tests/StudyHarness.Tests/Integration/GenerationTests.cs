@@ -32,6 +32,19 @@ public sealed class GenerationTests : IDisposable
         return (await Plans.ConfirmAsync(new(Guid.NewGuid(), proposed.Revision, new(draft.Id, doc.Hash, true)))).Value!;
     }
     private GenerationService Service(IModelProvider provider, bool legacy = true) => new(Plans, Store, Store, Knowledge, Settings, new(provider), new TheoryLessonParser(), legacy);
+    [Fact]
+    public async Task LessonRequest_UsesClearOcrDetailsAndRestrictsOnlyActualGaps()
+    {
+        var draft = await Seed();
+        var review = await Service(new TheoryFixtureProvider()).PrepareAsync(draft.Id, "A");
+        Assert.True(review.Ok);
+        var prompt = string.Join("\n", review.Value!.Reviews["A"].Sources.Select(s => s.Text));
+        Assert.Contains(CourseMaterials.OcrGuidance, prompt);
+        Assert.Contains("同页其他清楚内容仍可使用", prompt);
+        Assert.DoesNotContain("开头简短声明", prompt);
+        Assert.DoesNotContain("只使用连续正文支持的概念", prompt);
+        Assert.DoesNotContain("不恢复缺损原式、未取得的include或OCR图示", prompt);
+    }
     private async Task<GenerationTask> Request(PlanningDraft draft, GenerationTrigger trigger = GenerationTrigger.Click, string node = "A") =>
         (await Store.RequestAsync(draft.Id, Cmd(new RequestGeneration(node, trigger)))).Value!;
     private void Sql(string sql)

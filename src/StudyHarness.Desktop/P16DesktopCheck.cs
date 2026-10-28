@@ -110,6 +110,25 @@ internal static class P16DesktopCheck
                 await Task.WhenAll(firstRefresh, secondRefresh);
                 Check(window.CourseList.Children.Count == 12 && !window.CourseModel.Drafts.Any(d => d.Draft.Id == seed.Id), "overlapping-refresh-does-not-resurrect-deleted-course");
             }
+            var scroll = new ScrollViewer { Content = new Border { Height = 4000 }, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            SmoothScroll.SetEnabled(scroll, true);
+            var motionWindow = new Window { Content = scroll, Width = 350, Height = 400 };
+            motionWindow.Show(); motionWindow.UpdateLayout();
+            if (SystemParameters.ClientAreaAnimation && SystemParameters.WheelScrollLines != 0)
+            {
+                var wheel = new System.Windows.Input.MouseWheelEventArgs(System.Windows.Input.Mouse.PrimaryDevice, Environment.TickCount, -120)
+                    { RoutedEvent = System.Windows.Input.Mouse.PreviewMouseWheelEvent };
+                scroll.RaiseEvent(wheel);
+                Check(wheel.Handled && scroll.VerticalOffset == 0, "p28-wheel-starts-without-jump");
+                await Task.Delay(70); var middle = scroll.VerticalOffset;
+                await Task.Delay(220); var end = scroll.VerticalOffset;
+                Check(middle > 0 && end >= middle, "p28-wheel-interpolates");
+                scroll.ScrollToTop(); await Task.Delay(180);
+                Check(scroll.VerticalOffset == 0, "p28-explicit-scroll-cancels-motion");
+                samples.Add(new { kind = "p28-smooth-wheel", middle, end });
+            }
+            motionWindow.Close();
+            await P28WheelCheck.RunAsync(window, generation, root, evidence);
             await File.WriteAllTextAsync(Path.Combine(evidence, "performance.json"), JsonSerializer.Serialize(new { baseline, samples, checks, failed = 0, realNetwork = false, manualPending = true }, Wire.Options));
             System.Windows.Application.Current.Shutdown(0);
         }

@@ -72,13 +72,14 @@ public sealed class ModelEgress(IModelProvider provider, IModelCapabilitySource?
         if (!Domain.SettingsPolicy.IsValidModel(model)) throw new ArgumentException("Invalid model", nameof(model));
         ArgumentNullException.ThrowIfNull(sources);
         var copy = sources.Take(101).ToArray();
+        var planning = adaptiveCapability is not null && copy.FirstOrDefault()?.Id == "planning-v2";
         var outputCeiling = adaptiveCapability is null ? 8192 : copy.FirstOrDefault()?.Id is "theory-v2" or "theory-v3" or "theory-v4" or "planning-v2" ? 32768 : 16384;
         if (adaptiveCapability is not null)
             outputCeiling = Math.Min(outputCeiling, AdaptiveBudgetPolicy.IsFresh(adaptiveCapability, model, DateTimeOffset.UtcNow) ? adaptiveCapability.MaxOutputTokens : 4096);
         if (maxOutputTokens < 1 || maxOutputTokens > outputCeiling) throw new ArgumentException("Invalid output limit", nameof(maxOutputTokens));
         if (copy.Length < 1 || copy.Length > (adaptiveCapability is null ? 32 : 100) || copy.Any(s => s is null || string.IsNullOrWhiteSpace(s.Id) ||
-            s.Id.Length > 128 || s.Revision < 0 || !Enum.IsDefined(s.Kind) || s.Text is null || s.Text.Length > (adaptiveCapability is null ? 65536 : 131072)) ||
-            copy.Sum(s => (long)s.Text.Length) > (adaptiveCapability is null ? 65536 : 393216) || copy.Select(s => s.Id).Distinct(StringComparer.Ordinal).Count() != copy.Length)
+            s.Id.Length > 128 || s.Revision < 0 || !Enum.IsDefined(s.Kind) || s.Text is null || s.Text.Length > (adaptiveCapability is null ? 65536 : planning ? 786432 : 131072)) ||
+            copy.Sum(s => (long)s.Text.Length) > (adaptiveCapability is null ? 65536 : planning ? 786432 : 393216) || copy.Select(s => s.Id).Distinct(StringComparer.Ordinal).Count() != copy.Length)
             throw new ArgumentException("Invalid source snapshot", nameof(sources));
         var readable = readableSources?.Take(100).ToArray() ?? [];
         if (readable.Length > 99 || readable.Any(s => s is null || s.Kind != ModelSourceKind.OriginalMaterial ||

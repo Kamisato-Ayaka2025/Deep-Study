@@ -1,5 +1,5 @@
 <Window x:Class="StudyHarness.Desktop.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StudyHarness.Desktop"
         Title="Deep Study" Icon="Assets/deep-study.ico" Width="1340" Height="900" MinWidth="980" MinHeight="720"
         Background="{StaticResource DsPageBrush}" FontFamily="{StaticResource DsFont}" FontSize="13.5"
         WindowStartupLocation="CenterScreen" UseLayoutRounding="True" SnapsToDevicePixels="True">
@@ -66,10 +66,10 @@
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <ScrollViewer x:Name="MainScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer local:SmoothScroll.Enabled="True" x:Name="MainScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <Grid Margin="32,28,32,32" MaxWidth="1040" HorizontalAlignment="Stretch">
                     <!-- ===== Main conversation ===== -->
-                    <StackPanel x:Name="ChatPanel">
+                    <StackPanel local:SubtleMotion.Enabled="True" x:Name="ChatPanel">
                         <Border Background="{StaticResource DsHeroGradient}" BorderBrush="{StaticResource DsPrimaryLineBrush}" BorderThickness="1" CornerRadius="22" Padding="30,26" Margin="0,0,0,18">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -183,16 +183,26 @@
                                             </Border>
                                             <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                                                 <TextBlock Text="导入自己的资料" Style="{StaticResource DsH3}"/>
-                                                <TextBlock Text="PDF 教材与 .c/.cpp 源文件，只读导入（选填）" Style="{StaticResource DsCaption}" Margin="0,3,0,0"/>
+                                                <TextBlock Text="PDF、PPT、Markdown 与 .c/.cpp 源文件，只读导入（选填）" Style="{StaticResource DsCaption}" Margin="0,3,0,0"/>
                                             </StackPanel>
                                         </Grid>
                                     </Expander.Header>
                                     <StackPanel x:Name="WorkspacePanel">
-                                        <TextBlock Text="支持 PDF、.c、.cpp。导入PDF即自动扫描：无文字页将按每20页一批发送至DeepSeek，使用已配置模型并产生API费用。可随时取消并保留进度；原文件只读。" Style="{StaticResource DsSmall}"/>
-                                        <WrapPanel Margin="0,12,0,0" IsEnabled="{Binding CanOperate}">
-                                            <Button Content="导入文件" Click="ImportFile_Click" AutomationProperties.AutomationId="ImportFile" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8"/>
+                                        <TextBlock Text="支持 PDF、PPT、PPTX、Markdown、.c、.cpp。PPTX文字、表格和备注直接提取，图示页在线识别；旧PPT转换和幻灯片读图需要Microsoft PowerPoint。已完成页复用缓存。待识别页全部发送至DeepSeek识别。在线识别使用已配置模型并产生API费用；PPT默认8页并行，可选16页，PDF为8页并行。可取消并保留进度；原文件只读。" Style="{StaticResource DsSmall}"/>
+                                        <WrapPanel Margin="0,12,0,0" IsEnabled="{Binding CanImport}">
+                                            <Button x:Name="ImportFileButton" Content="导入文件" Click="ImportFile_Click" AutomationProperties.AutomationId="ImportFile" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8"/>
                                             <Button Content="导入目录" Click="ImportFolder_Click" AutomationProperties.AutomationId="ImportFolder" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8"/>
                                         </WrapPanel>
+                                        <TextBlock Text="{Binding ImportQueueText}" Style="{StaticResource DsSmall}" AutomationProperties.AutomationId="ImportQueue"/>
+                                        <WrapPanel IsEnabled="{Binding CanResumeImports}">
+                                            <Button Content="继续队列" Click="ResumeImports_Click" Style="{StaticResource SecondaryButton}" Margin="0,4,8,8"/>
+                                            <Button Content="清空待处理队列" Click="ClearImports_Click" Style="{StaticResource GhostButton}" Margin="0,4,0,8"/>
+                                        </WrapPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10" IsEnabled="{Binding CanOperate}">
+                                            <TextBlock Text="PPT扫描并发" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <ComboBox x:Name="PresentationConcurrencySelector" ItemsSource="{Binding PresentationConcurrencyChoices}" SelectedItem="{Binding PresentationConcurrency}" Width="80" AutomationProperties.AutomationId="PresentationConcurrency"/>
+                                            <TextBlock Text="页 · 网络稳定时可选16；暂停后可调整" Style="{StaticResource DsSmall}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                        </StackPanel>
                                         <ItemsControl ItemsSource="{Binding Materials}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
@@ -209,9 +219,9 @@
                                         <TextBlock Text="{Binding Status}" Style="{StaticResource DsSmall}" Margin="0,8,0,0" AutomationProperties.AutomationId="WorkspaceStatus"/>
                                         <Border Style="{StaticResource DsSoftPanel}" Margin="0,10,0,0">
                                             <StackPanel>
-                                                <TextBlock Text="PDF扫描进度" Style="{StaticResource DsH3}"/>
+                                                <TextBlock Text="资料扫描进度" Style="{StaticResource DsH3}"/>
                                                 <TextBlock Text="{Binding SelectedCollection.Label}" Style="{StaticResource DsSmall}" Margin="0,6,0,0"/>
-                                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding ScanPercent, Mode=OneWay}" Height="18" Margin="0,10,0,6" AutomationProperties.AutomationId="PdfScanProgress"/>
+                                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding ScanPercent, Mode=OneWay}" IsIndeterminate="{Binding ScanIndeterminate}" Height="18" Margin="0,10,0,6" AutomationProperties.AutomationId="PdfScanProgress"/>
                                                 <TextBlock Text="{Binding ScanProgressText}" Style="{StaticResource DsSmall}" AutomationProperties.AutomationId="PdfScanProgressText"/>
                                                 <WrapPanel Margin="0,8,0,0">
                                                     <Button Content="继续扫描" Click="ContinueScan_Click" IsEnabled="{Binding CanOperate}" Style="{StaticResource SecondaryButton}" AutomationProperties.AutomationId="ContinuePdfScan"/>
@@ -288,7 +298,7 @@
                     </StackPanel>
 
                     <!-- ===== Courses ===== -->
-                    <StackPanel x:Name="CoursesPanel" Visibility="Collapsed">
+                    <StackPanel local:SubtleMotion.Enabled="True" x:Name="CoursesPanel" Visibility="Collapsed">
                         <Grid x:Name="CoursesHeader" Margin="0,0,0,24">
                             <StackPanel>
                                 <TextBlock Text="我的课程" Style="{StaticResource DsDisplay}"/>
@@ -332,7 +342,7 @@
                                             <TextBlock Text="学习路线" Style="{StaticResource DsH2}"/>
                                             <TextBlock Text="自上而下按建议顺序排列；你的完成情况会随学习自动更新。" Style="{StaticResource DsCaption}" Margin="0,4,0,0"/>
                                         </StackPanel>
-                                        <ScrollViewer x:Name="RouteViewport" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Center">
+                                        <ScrollViewer local:SmoothScroll.Enabled="True" x:Name="RouteViewport" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Center">
                                             <Canvas x:Name="CourseCanvas" AutomationProperties.AutomationId="CourseGraph"/>
                                         </ScrollViewer>
                                     </Grid>
@@ -369,7 +379,7 @@
                     </StackPanel>
 
                     <!-- ===== Settings ===== -->
-                    <StackPanel x:Name="SettingsPanel" Visibility="Collapsed" MaxWidth="820" HorizontalAlignment="Left">
+                    <StackPanel local:SubtleMotion.Enabled="True" x:Name="SettingsPanel" Visibility="Collapsed" MaxWidth="820" HorizontalAlignment="Left">
                         <TextBlock Text="设置" Style="{StaticResource DsDisplay}"/>
                         <TextBlock Text="连接 DeepSeek，让学习计划与课文使用你自己的账户生成。" Style="{StaticResource DsBody}" Foreground="{StaticResource DsMutedBrush}" Margin="0,8,0,24"/>
 

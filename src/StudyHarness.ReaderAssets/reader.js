@@ -76,26 +76,37 @@ function mathBlock(text,target){
  if(!math(wrapped?wrapped[1]:trimmed,target,true))target.replaceChildren(paragraph(text));
 }
 function render(reader){
+ clearTimeout(saveTimer);
  const same=current?.identity.lessonHash===reader.identity.lessonHash;
  const previous=same&&scrollInitialized?window.scrollY:null;
  if(!same)scrollInitialized=false;
  current=reader;restoring=true;document.getElementById('title').textContent='课程正文';
  document.getElementById('state').textContent=reader.completedAt?'已完成 · 再次作答不会撤回完成记录':reader.canAnswer?'可测验 · 每题至少答对一次即可完成':'历史版本 · 仅可阅读';
- const content=document.getElementById('content');content.replaceChildren();
- for(const block of reader.blocks){const section=element('section',undefined,block.kind);section.id=block.id;section.dataset.block=block.id;
+ const content=document.getElementById('content');
+ const existing=same?new Map([...content.children].map(el=>[el.id,el])):new Map();
+ const questions=new Map(reader.questions.map(q=>[q.id,q]));
+ const retained=new Set();let cursor=content.firstElementChild;
+ for(const block of reader.blocks){
+  const signature=JSON.stringify([block,block.kind==='question'?questions.get(block.questionId):null,block.kind==='question'?reader.canAnswer:null]);
+  const cached=existing.get(block.id);
+  if(cached?.renderSignature===signature){retained.add(cached);if(cached===cursor)cursor=cursor.nextElementSibling;else content.insertBefore(cached,cursor);continue;}
+  const section=element('section',undefined,block.kind);section.renderSignature=signature;section.id=block.id;section.dataset.block=block.id;
   if(block.kind==='question'){
-   const q=reader.questions.find(q=>q.id===block.questionId);const prompt=paragraph(q.prompt);prompt.className='question-prompt';section.append(prompt);const form=element('form');form.dataset.question=q.id;
+   const q=questions.get(block.questionId);const prompt=paragraph(q.prompt);prompt.className='question-prompt';section.append(prompt);const form=element('form');form.dataset.question=q.id;
    for(const option of q.options){const label=element('label'),input=element('input');input.type='radio';input.name=q.id;input.value=option.id;input.disabled=!reader.canAnswer;label.append(input,element('b',(option.displayLabel??'')+'. ','option-label'),rich(option.text));form.append(label);}
    const button=element('button','提交答案');button.type='submit';button.disabled=!reader.canAnswer;form.append(button);form.addEventListener('submit',e=>{e.preventDefault();const picked=form.querySelector('input:checked');if(picked)message('answer',{questionId:q.id,optionId:picked.value,requestId:crypto.randomUUID()});});section.append(form);
    if(q.answer){const correct=q.options.find(o=>o.id===q.answer.correctOptionId);const answer=paragraph('正确选项：'+(correct?.displayLabel??'')+' · '+(correct?.text??'')+'\n'+q.answer.explanation);answer.className='answer';section.append(answer);}
   }else if(block.kind==='heading')section.append(rich(block.text,'h2'));
   else if(block.kind==='code')section.append(renderCode(block.text));
   else if(block.kind==='math')mathBlock(block.text,section);
-  else if(block.kind==='diagram'){const graph=element('div',undefined,'diagram');const parts=block.text.split(/\s*(?:->|→)\s*/).slice(0,20);parts.forEach((part,i)=>{if(i)graph.append(element('b','→'));graph.append(element('span',part));});section.append(graph);}
-  else section.append(paragraph(block.text));content.append(section);
+  else if(block.kind==='diagram')section.append(lessonDiagram(block.text));
+  else section.append(paragraph(block.text));
+  retained.add(section);content.insertBefore(section,cursor);
  }
- document.getElementById('sources').textContent='固定版本资料：\n'+reader.sources.map(s=>s.key+' · '+s.reference.locator.sourceLabel+' / '+(s.reference.locator.heading||'')+' · '+s.reference.versionId).join('\n');
- requestAnimationFrame(()=>{if(previous!==null)window.scrollTo(0,previous);else if(reader.position)document.getElementById(reader.position.blockId)?.scrollIntoView();else window.scrollTo(0,0);scrollInitialized=true;setTimeout(()=>restoring=false,150);});
+ for(const child of [...content.children])if(!retained.has(child))child.remove();
+ const hasOcr=reader.sources.some(s=>/OCR/i.test(s.reference.locator.heading||''));
+ document.getElementById('sources').textContent='资料信息 · 固定版本资料：\n'+reader.sources.map(s=>s.key+' · '+s.reference.locator.sourceLabel+' / '+(s.reference.locator.heading||'')+' · '+s.reference.versionId).join('\n')+(hasOcr?'\nOCR未复核：自动识别结果未经人工逐项核对。清楚内容可用于学习和测验；实际不清晰或缺失的部分需对照原页。':'');
+ requestAnimationFrame(()=>{if(current!==reader)return;if(previous!==null)window.scrollTo(0,previous);else if(reader.position)document.getElementById(reader.position.blockId)?.scrollIntoView();else window.scrollTo(0,0);scrollInitialized=true;setTimeout(()=>{if(current===reader)restoring=false;},150);});
 }
 window.chrome.webview.addEventListener('message',e=>{if(e.data.type==='lesson')render(e.data.value);else if(e.data.type==='clear'){current=null;scrollInitialized=false;clearTimeout(saveTimer);document.getElementById('content').replaceChildren();document.getElementById('sources').textContent='';document.getElementById('title').textContent='课程正文';document.getElementById('state').textContent='正文未生成，请查看左侧课程目标并点击生成。';}});
 document.getElementById('quiz').addEventListener('click',()=>document.querySelector('.question')?.scrollIntoView());

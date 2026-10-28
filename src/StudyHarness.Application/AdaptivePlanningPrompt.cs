@@ -2,11 +2,24 @@ namespace StudyHarness.Application;
 
 public static class AdaptivePlanningPrompt
 {
+    public const string DepthGuidance = """
+        PPT/PPTX按幻灯片标题和知识主题组织，同一主题的连续页（包括逐步出现的图示和讲者备注）合成教学单元；页数不是课数，也不代表知识量。不要一页一课，不把整份幻灯片绑定为每课必读。coverage按主题页段精确映射，生成具体课时只检索目标相关页段。重复标题、目录、页脚不应造成重复课程；图示页的视觉转写与原生文字互补。
+        教学质量优先：先逐章列全需要掌握的小节、独立机制、算法、推导和练习，再组织课程，最后估计时长和周安排。课程数量由内容决定，不预设40课、固定总周数或统一每章课数。
+        每周时间是学习节奏，不是整门课总预算。增加必要课程时延长总学习周数；不得为凑周数、输出篇幅或节点数压缩后半本书。单课过长应拆分，不把不同知识点塞进一节概览课。
+        每节理论围绕一个可完整讲解并演练的核心问题，紧密依赖的子步骤可以同课；独立机制或算法分别组织。整章目录、综合回顾和纸笔练习不能代替该章必要的首次理论教学。基础较弱和期末备考不等于只讲概念或削去推导。
+        例如网络教材中的TLS、IPsec、无线安全、防火墙/IDS具有不同机制，不能仅用“各层安全协议”一节替代全部深入教学；这只是拆课原则示例，不要求给无关教材添加这些内容。
+        输出前从最后一章向前逐章审查：每个纳入范围的小节是否有明确教学目标、所需理论与例子/推导；后几章不得因排列靠后变成概览。各章深度按实际内容与学习基础决定，不要求机械等量。合理合并应保留各目标的讲解与练习，不能仅列关键词声称已覆盖。
+        本次只发送代表正文或索引摘录，不等于本地未取得整章正文。textReady/ocrReady表示正文已经取得，可先完整规划，生成该课时按绑定检索。不得以“本次仅样本/仅索引摘录”为由删除或降低后续章节目标。unavailable和实际标明的局部缺失仍如实处理，不得虚构已取得内容。
+        OCR是获取方式，不是删除图示、公式、数值计算和推导目标的理由。清楚且上下文一致的内容正常规划；只限制明确无法辨认、缺失或矛盾部分，不将个别问题扩展到全章。
+        用户明确限定总课数或速览范围时尊重限定，说明它与完整深入学习的取舍；“期末考试”本身不构成压缩总课数授权。240为技术上限，不是目标课数；若完整目标超过当前容量，明确需要分阶段规划，不以合并后半本书假装完整。
+        """;
     public static string Text { get; } = Load();
     private static string Load()
     {
         using var stream = typeof(AdaptivePlanningPrompt).Assembly.GetManifestResourceStream("plan-v2.schema.json")!;
         using var reader = new StreamReader(stream);
+        using var schema = System.Text.Json.JsonDocument.Parse(reader.ReadToEnd());
+        var compactSchema = System.Text.Json.JsonSerializer.Serialize(schema.RootElement);
         return """
             为计算机或数学目标制定完整学习计划，只输出JSON。schemaVersion=2，scope=Adaptive。
             根据用户目标、基础、每周时间及资料选择教学策略，解释理由，不依赖用户选择学科类型。
@@ -31,8 +44,8 @@ public static class AdaptivePlanningPrompt
             未提供目录时coverage=[]。目录不是正文来源，只引用实际取得并提供的sourceKeys。
             计划与每个实践的sourceKeys各选相关的实际资料id，最多99个；其余原文仍可按冻结目录检索。
             lab.sourceKeys只引用本次实际提供且支持该练习的资料；宿主将这些有效来源并入顶层sourceKeys汇总，未知来源仍拒绝。
-            每课预计分钟由目标/复杂度/周投入决定，正整数且不超过每周时间；最多240节点，不遗漏目标。
-            用户明确指定的课程或题目数量须遵守；不要因每周时间充足擅自增加或拆分课程。预计学习时间不是模型生成时间。
+            每课预计分钟由教学目标与复杂度估计，正整数且不超过每周时间；必要时细分为可独立学习的连续课。最多240节点，不遗漏目标。
+            用户明确指定的课程或题目数量须遵守；未指定数量时优先完整讲解，不为凑数增加无关课。预计学习时间不是模型生成时间。
             拓扑无环，课程键n1等；连续实践明确前课且列为直接前置，能力保持一致。
             已填结构化background/goal/weeklyMinutes逐字保留；缺项可根据请求提取或显式defaults，默认value必须和最终字段一致。
             defaults标明用户未填写而采用默认值的字段及reason；value由宿主按最终对应字段统一展示。不得将用户已填写字段标默认；不加strategyNote等Schema外字段。
@@ -40,6 +53,6 @@ public static class AdaptivePlanningPrompt
             clarifications只列阻止交付的问题；已回答或采用默认值的事项不再追问，无固定期限/平台不阻塞。不得加入入门诊断测验；补充回答优先于旧问题。
             返回前自查：每个算法均有对应理论+portable-cpp练习并有依赖；每个lab含kind；独立练习previousLabKey=null；每课分钟不得超过weeklyMinutes；已提供时间不得写入defaults。不要将基础语法课程误当算法而遗漏对应题。
             以下是实际验证Schema：
-            """ + "\n" + reader.ReadToEnd();
+            """ + "\n" + DepthGuidance + "\n" + compactSchema;
     }
 }

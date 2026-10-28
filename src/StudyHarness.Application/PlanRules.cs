@@ -25,6 +25,8 @@ public static class PlanRules
     {
         Result<PlanDocument> Bad(string message) => Result<PlanDocument>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, message);
         var adaptive = plan.SchemaVersion == 2;
+        if (plan.Nodes.Count > (adaptive ? 240 : 80))
+            return Bad($"PVAL001：本次计划超过{(adaptive ? 240 : 80)}个节点的技术容量。请明确分阶段规划并保留后续范围，不得压缩后半部分的教学深度来凑上限。");
         if (plan.SchemaVersion is not (1 or 2) || plan.Nodes.Count < 1 || plan.Nodes.Count > (adaptive ? 240 : 80) || plan.Nodes.Any(n => n.Type is not ("theory" or "lab") || n.EstimatedMinutes is < 1 or > 10080) ||
             plan.WeeklyMinutes is < 1 or > 10080 || (adaptive ? plan.Scope != "Adaptive" : plan.Scope is not ("Math" or "Concepts" or "SimpleC" or "CppAlgorithms" or "OutOfScope")))
             return Bad("PVAL001：计划类型、课程数量或每周时间无效。");

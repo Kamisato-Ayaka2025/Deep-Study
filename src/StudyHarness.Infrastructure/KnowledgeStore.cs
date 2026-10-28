@@ -10,15 +10,15 @@ using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace StudyHarness.Infrastructure;
 
-public sealed partial class KnowledgeStore : IKnowledgeStore, IWebKnowledge, IBoundedCollectionKnowledge, IOcrKnowledge, ISiteKnowledge
+public sealed partial class KnowledgeStore : IKnowledgeStore, IWebKnowledge, IBoundedCollectionKnowledge, IOcrKnowledge, ISiteKnowledge, IImportProgressKnowledge
 {
     public async Task<Result<CollectionSnapshot>> ImportCollectionAsync(HostSelection selection, Guid library, CancellationToken ct = default)
     {
         await mutex.WaitAsync(ct);
         try
         {
-            if (selection.IsDirectory || Path.GetExtension(selection.Path).ToLowerInvariant() is not (".pdf" or ".md" or ".markdown"))
-                return Result<CollectionSnapshot>.Fail(ErrorCode.VALIDATION_ERROR, "请选择PDF或Markdown教材文件。");
+            if (selection.IsDirectory || Path.GetExtension(selection.Path).ToLowerInvariant() is not (".pdf" or ".ppt" or ".pptx" or ".md" or ".markdown"))
+                return Result<CollectionSnapshot>.Fail(ErrorCode.VALIDATION_ERROR, "请选择PDF、PPT、PPTX或Markdown教材文件。");
             var location = Locate(library);
             return Result<CollectionSnapshot>.Success(await Task.Run(() => new CollectionStore(location.Root, library).Import(selection.Path, ct), ct));
         }
@@ -214,7 +214,9 @@ public sealed partial class KnowledgeStore : IKnowledgeStore, IWebKnowledge, IBo
     }
     public Task<Result<ImportReport>> ImportAsync(Command<HostSelection> command, Guid libraryId, CancellationToken ct = default)
         => Task.Run(() => ImportCoreAsync(command, libraryId, ct), ct);
-    private async Task<Result<ImportReport>> ImportCoreAsync(Command<HostSelection> command, Guid libraryId, CancellationToken ct)
+    public Task<Result<ImportReport>> ImportWithProgressAsync(Command<HostSelection> command, Guid libraryId, IProgress<ImportProgress> progress, CancellationToken ct = default)
+        => Task.Run(() => ImportCoreAsync(command, libraryId, ct, progress), ct);
+    private async Task<Result<ImportReport>> ImportCoreAsync(Command<HostSelection> command, Guid libraryId, CancellationToken ct, IProgress<ImportProgress>? progress = null)
     {
         await mutex.WaitAsync(ct);
         try
@@ -243,12 +245,12 @@ public sealed partial class KnowledgeStore : IKnowledgeStore, IWebKnowledge, IBo
                 try
                 {
                     var extension = Path.GetExtension(path).ToLowerInvariant();
-                    if (selection.IsPlanImport)
+                    if (selection.IsPlanImport || extension is ".ppt" or ".pptx")
                     {
-                        if (extension is not (".pdf" or ".c" or ".cpp")) { reports.Add(new(Path.GetFileName(path), false, 0, 0, 0, "已跳过：仅支持PDF/.c/.cpp")); continue; }
-                        if (extension == ".pdf")
+                        if (extension is not (".pdf" or ".ppt" or ".pptx" or ".md" or ".markdown" or ".c" or ".cpp")) { reports.Add(new(Path.GetFileName(path), false, 0, 0, 0, "已跳过：仅支持PDF/PPT/PPTX/Markdown/.c/.cpp")); continue; }
+                        if (extension is ".pdf" or ".ppt" or ".pptx" or ".md" or ".markdown")
                         {
-                            var collection = new CollectionStore(library.Root, libraryId).Import(path, ct);
+                            var collection = new CollectionStore(library.Root, libraryId).Import(path, ct, progress);
                             collectionReferences.AddRange(collection.References.Take(1));
                             reports.Add(new(Path.GetFileName(path), true, collection.Collection.ReadyCount, 0, 0,
                                 collection.Collection.ReadyCount < collection.Collection.EntryCount ? "部分页待识别，请在扫描页识别中处理" : null));

@@ -3,10 +3,10 @@ using StudyHarness.Contracts;
 
 namespace StudyHarness.Application;
 
-public sealed class ContextBudgetExceededException(int input, int output, int margin, int context, bool verified) : ArgumentException("Context budget exceeded")
+public sealed class ContextBudgetExceededException(int input, int output, int margin, int context, bool verified, int inputLimit = 393216) : ArgumentException("Context budget exceeded")
 {
-    public string UserMessage(string model) => $"模型 {model}：输入保守估算 {input:N0}（按UTF-8字节计，非实际Token），输出预留 {output:N0} Token，安全余量 {margin:N0} Token，上下文 {context:N0} Token。" +
-        (verified ? "本课完整资料超过额度，需进一步按目标分课。" : "当前模型能力未取得，正使用保守额度；请在设置中核对模型和API密钥后重试。");
+    public string UserMessage(string model) => $"模型 {model}：输入保守估算 {input:N0}（按UTF-8字节计，非实际Token），输出预留 {output:N0} Token，安全余量 {margin:N0} Token，上下文 {context:N0} Token，本地输入上限 {inputLimit:N0} 字节。" +
+        (verified ? "当前输入超过额度，请缩小范围或分阶段规划。" : "当前模型能力未取得，正使用保守额度；请在设置中核对模型和API密钥后重试。");
 }
 
 public static class AdaptiveBudgetPolicy
@@ -32,8 +32,9 @@ public static class AdaptiveBudgetPolicy
         var input = Encoding.UTF8.GetByteCount(serializedTextRequest);
         var reserve = Math.Min(plan || reasoningLesson ? 32768 : 16384, effective.MaxOutputTokens);
         const int margin = 8192;
-        if (input > 393216 || (long)input + reserve + margin > effective.ContextWindow)
-            throw new ContextBudgetExceededException(input, reserve, margin, effective.ContextWindow, IsFresh(capability, model, now));
+        var inputLimit = plan ? 786432 : 393216;
+        if (input > inputLimit || (long)input + reserve + margin > effective.ContextWindow)
+            throw new ContextBudgetExceededException(input, reserve, margin, effective.ContextWindow, IsFresh(capability, model, now), inputLimit);
         return new(input, reserve, margin, 4 * 1024 * 1024, 3, 2, plan ? 600 : 300, plan ? 900 : 600);
     }
 }

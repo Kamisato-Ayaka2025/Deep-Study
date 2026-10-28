@@ -56,6 +56,23 @@ internal sealed partial class CollectionStore
                 if (uncovered.Count == 0) break;
             }
         }
+        if (binding.Manifest.Entries.Any(e => e.QualityFlags.Contains(PresentationReader.Version)))
+        {
+            // Slides are sparse. Keep a contiguous same-title explanation together, without
+            // pulling in the next topic or treating a chapter-wide binding as required context.
+            var manifestEntries = binding.Manifest.Entries;
+            foreach (var seed in seedsList.ToArray())
+            {
+                var position = manifestEntries.ToList().FindIndex(e => e.Key == seed.Entry);
+                if (position < 0) continue;
+                var title = manifestEntries[position].Heading;
+                var first = position; var last = position;
+                while (first > 0 && manifestEntries[first - 1].Heading == title && entries.Contains(manifestEntries[first - 1].Key)) first--;
+                while (last + 1 < manifestEntries.Count && manifestEntries[last + 1].Heading == title && entries.Contains(manifestEntries[last + 1].Key)) last++;
+                var keys = manifestEntries.Skip(first).Take(last - first + 1).Select(e => e.Key).ToHashSet();
+                seedsList.AddRange(candidates.Where(c => keys.Contains(c.Entry)));
+            }
+        }
         var seeds = seedsList.DistinctBy(c => c.Reference).ToArray();
         var ordered = seeds.Concat(seeds.SelectMany(seed => candidates.Where(c => c.Entry == seed.Entry && Math.Abs(c.Start - seed.Start) <= 4000)))
             .Concat(candidates.OrderByDescending(c => c.Score)).DistinctBy(c => c.Reference).ToArray();

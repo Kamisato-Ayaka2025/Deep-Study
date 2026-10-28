@@ -12,11 +12,11 @@ internal sealed partial class CollectionStore
         using var pin = SafeKnowledgeFiles.PinDirectory(root); using var file = SafeKnowledgeFiles.PinExistingFile(Database); using var db = Open();
         using var command = db.CreateCommand(); command.CommandText = "SELECT json FROM collections WHERE id=$id"; command.Parameters.AddWithValue("$id",id.ToString());
         var collection = JsonSerializer.Deserialize<SourceCollection>(command.ExecuteScalar() as string ?? throw new IOException("教材已删除。"),Wire.Options)!;
-        if (collection.SourceKind != "pdf") throw new InvalidDataException("PDF required");
+        if (collection.SourceKind is not ("pdf" or "presentation")) throw new InvalidDataException("PDF required");
         command.CommandText = "SELECT manifest FROM collection_versions WHERE collection_id=$id AND version=$version"; command.Parameters.AddWithValue("$version",collection.Version);
         var manifest = JsonSerializer.Deserialize<CoverageManifest>((string)command.ExecuteScalar()!,Wire.Options)!;
         var ready = manifest.Entries.Where(e => e.State is "textReady" or "ocrReady").Select(e => int.Parse(e.Locator)).ToArray();
-        return new(id,collection.SourceFingerprint,collection.EntryCount,ready,manifest.Entries.Select(e => int.Parse(e.Locator)).Except(ready).Order().ToArray());
+        return new(id,collection.SourceFingerprint,collection.EntryCount,ready,manifest.Entries.Select(e => int.Parse(e.Locator)).Except(ready).Order().ToArray(), collection.SourceKind);
     }
     public void StageOcr(RenderedPage page, OcrPageResult result, CancellationToken ct)
     {

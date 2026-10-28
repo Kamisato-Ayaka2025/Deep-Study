@@ -19,6 +19,7 @@ internal static class P10DesktopCheck
          new("steps", "paragraph", @"$$A(u+v)=Au+Av$$" + "\n" + @"\[A(ku)=kAu\]"),
          new("matrix", "math", @"\begin{pmatrix}1&2\\3&4\end{pmatrix}\begin{pmatrix}x_1\\x_2\end{pmatrix}"),
          new("wide", "math", string.Join("+", Enumerable.Repeat(@"x_{123456789}", 24))),
+         new("visual", "diagram", """{"type":"flow","title":"传输示意","nodes":["发送","接收"],"edges":[[0,1,"数据"]]}"""),
          new("question", "question", QuestionId: "q1")],
         [new("q1", "```c\nint n = 2;\n```\n上面示例中 n 的值是多少？",
             Enumerable.Range(0, count).Select(i => new LessonOption("id" + i, (i + 2).ToString())).ToArray(),
@@ -38,7 +39,7 @@ internal static class P10DesktopCheck
             if (draft is null)
             {
                 var sources = new[] { new PlanSource("s1", new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new string('A', 64),
-                    new("p10-synthetic.md", null, "集合与分配律", "1")), false) };
+                    new("p10-synthetic.pdf", 1, "第1页（OCR，待复核）", "1")), false) };
                 var input = new PlanningInput("P10合成显示", "基础", "代码与数学", 120, "Math", []);
                 draft = (await plans.StartAsync(new(Guid.NewGuid(), 0, input))).Value!;
                 var candidate = new PlanCandidate("P10合成显示", "基础", "代码与数学", 120, "Math", [], [], [], ["s1"],
@@ -69,11 +70,20 @@ internal static class P10DesktopCheck
                 await window.Browser.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, image);
             }
             await Wait("!!document.querySelector('#code pre')");
+            Check(await Js("document.getElementById('sources').textContent.includes('OCR未复核')"), "ocr-status-in-source-information");
+            Check(await Js("!document.getElementById('content').textContent.includes('OCR未复核')"), "ocr-status-not-in-lesson-body");
             Check(await Js("!!document.querySelector('#code .token-keyword') && !!document.querySelector('#code .token-comment') && !!document.querySelector('#code .token-string') && !!document.querySelector('#code .token-number')"), "code-four-token-categories");
             Check(await Js("new Set(['keyword','comment','string','number'].map(k=>getComputedStyle(document.querySelector('#code .token-'+k)).color)).size===4"), "four-distinct-computed-colors");
             Check(await Js("document.querySelector('#code pre').textContent===" + JsonSerializer.Serialize(Code)), "code-exact-crlf-tab-unicode");
             Check(await Js("document.querySelector('#fence pre').textContent===" + JsonSerializer.Serialize(Code)), "fence-exact-crlf-tab-unicode");
             Check(await Js("!!document.querySelector('.question-prompt .token-keyword')"), "question-fence-colored");
+            await Capture("optional-diagram", "visual");
+            Check(await Js("document.querySelectorAll('#visual svg rect').length===2 && document.querySelector('#visual').textContent.includes('传输示意')"), "optional-flow-lesson-renders");
+            Check(await Js("lessonDiagram(JSON.stringify({type:'bar',labels:['A','B','C'],values:[-2,0,5]})).querySelectorAll('rect').length===3"), "optional-bar-negative-zero-values");
+            Check(await Js("!!lessonDiagram(JSON.stringify({type:'line',labels:['A','B'],values:[1,2]})).querySelector('polyline')"), "optional-line-renders");
+            Check(await Js("lessonDiagram('{bad json').querySelector('pre').textContent==='{bad json'"), "malformed-diagram-falls-back-to-text");
+            Check(await Js("(()=>{const f=lessonDiagram(JSON.stringify({type:'flow',nodes:['<img src=x onerror=alert(1)>'],edges:[]}));return !f.querySelector('img,script')&&f.textContent.includes('<img');})()"), "diagram-label-html-is-inert");
+            Check(await Js("lessonDiagram('A -> B -> C').querySelectorAll('rect').length===3"), "legacy-arrow-diagram-supported");
             Check(await Js("!window.injected && !document.querySelector('#content script,#content img')"), "literal-html-is-inert");
             Check(await Js("""
                 (()=>{const s='<svg onload=alert(1)> 中文';const p=renderCode(s,'unknown');return p.textContent===s&&!p.children.length;})()
@@ -93,6 +103,9 @@ internal static class P10DesktopCheck
             Check(await Js("""
                 (()=>{const p=paragraph('```cpp\r\nint x = 1;\r\n');return p.querySelector('pre').textContent==='int x = 1;\r\n';})()
                 """), "unclosed-fence-keeps-final-newline");
+            window.Activate();
+            window.Browser.Focus();
+            await Task.Delay(150);
             Check(await Js("""
                 (()=>{const r=document.createRange();r.selectNodeContents(document.querySelector('#code pre'));const s=getSelection();s.removeAllRanges();s.addRange(r);return s.toString()===document.querySelector('#code pre').textContent;})()
                 """), "selection-copy-text-exact");
@@ -101,6 +114,10 @@ internal static class P10DesktopCheck
             try
             {
                 Check(await Js("document.execCommand('copy')"), "browser-copy-command");
+                // WebView2 publishes to the system clipboard asynchronously. Keep the
+                // exact content assertion, but allow the native message queue to drain.
+                for (var attempt = 0; attempt < 50 && Clipboard.GetText().Replace("\r\n", "\n") != Code.Replace("\r\n", "\n"); attempt++)
+                    await Task.Delay(40);
                 Check(Clipboard.GetText().Replace("\r\n", "\n") == Code.Replace("\r\n", "\n"), "clipboard-copy-preserves-code");
             }
             finally { if (clipboard is not null) Clipboard.SetDataObject(clipboard); else Clipboard.Clear(); }
@@ -116,6 +133,31 @@ internal static class P10DesktopCheck
                 (()=>{const e=document.createElement('div');math('\\href{javascript:alert(1)}{bad}',e);return !e.querySelector('a');})()
                 """), "katex-untrusted-link-rejected");
             await Capture("code", "code"); await Capture("math", "steps");
+            var reuseReport = await window.Browser.ExecuteScriptAsync("""
+                (()=>{
+                  const original=current, sample=structuredClone(current);
+                  sample.blocks=[...Array.from({length:240},(_,i)=>({id:'perf-'+i,kind:'paragraph',text:'长课程公式 $x_1^2 + x_2^2$ 与代码 `value`。'.repeat(30)})),...sample.blocks];
+                  sample.canAnswer=false;
+                  let start=performance.now();render(sample);document.body.offsetHeight;const initialMs=performance.now()-start;
+                  const nodes=[...document.querySelectorAll('#content > section')];
+                  start=performance.now();render(structuredClone(sample));document.body.offsetHeight;const refreshMs=performance.now()-start;
+                  const refreshed=[...document.querySelectorAll('#content > section')];const reused=nodes.filter(n=>refreshed.includes(n)).length;
+                  const updated=structuredClone(sample);updated.blocks[0].text='更新正文';render(updated);
+                  const changed=document.getElementById('perf-0')!==nodes[0]&&document.getElementById('perf-1')===nodes[1];
+                  updated.canAnswer=true;render(updated);const enabled=[...document.querySelectorAll('input')].every(n=>!n.disabled);
+                  render(original);
+                  return {initialMs,refreshMs,reused,count:nodes.length,changed,enabled};
+                })()
+                """);
+            await File.WriteAllTextAsync(Path.Combine(evidence, restart ? "p28-reader-restart.json" : "p28-reader.json"), reuseReport);
+            using (var reuse = JsonDocument.Parse(reuseReport))
+            {
+                var result = reuse.RootElement;
+                if (result.GetProperty("reused").GetInt32() != result.GetProperty("count").GetInt32() ||
+                    !result.GetProperty("changed").GetBoolean() || !result.GetProperty("enabled").GetBoolean())
+                    throw new InvalidOperationException("P28 reader reuse or permission invalidation failed");
+            }
+
             var orders = new Dictionary<string, string>(); var hashes = new Dictionary<string, string>();
             var expected = restart ? JsonSerializer.Deserialize<Dictionary<string, string>>(await File.ReadAllTextAsync(Path.Combine(evidence, "orders.json")))! : null;
             foreach (var (key, count, _) in nodes)
@@ -154,6 +196,9 @@ internal static class P10DesktopCheck
             await Capture("quiz", "question");
             Check(provider.Calls == 0, "reading-restart-zero-model-calls");
             Check((await store.CompletedNodesAsync(draft.Id)).Count == 5, "mastery-persisted");
+            await Task.Delay(500);
+            await window.Browser.ExecuteScriptAsync("document.querySelectorAll('header,footer,section:not(#visual)').forEach(e=>e.style.display='none');window.scrollTo(0,0)");
+            await Capture("diagram-feature", "visual");
             await File.WriteAllTextAsync(Path.Combine(evidence, restart ? "restart.json" : "ui.json"), JsonSerializer.Serialize(new
                 { checks, failed = 0, manualPending = true, codeExecuted = false, syntheticProgressOnly = true }, Wire.Options));
             window.Close(); System.Windows.Application.Current.Shutdown(0);

@@ -3,7 +3,7 @@ using StudyHarness.Contracts;
 namespace StudyHarness.Application;
 
 public sealed record PdfScanState(Guid CollectionId, string SourceFingerprint, int TotalPages, IReadOnlyList<int> ReadyPages,
-    IReadOnlyList<int> PendingPages);
+    IReadOnlyList<int> PendingPages, string SourceKind = "pdf");
 public sealed record PdfScanProgress(int Completed, int Total, int Batch, int Batches, string Message);
 public interface IAutomaticPdfKnowledge : IOcrKnowledge
 {
@@ -18,6 +18,8 @@ public interface IAutomaticPdfKnowledge : IOcrKnowledge
 public sealed class AutomaticPdfScanService(IAutomaticPdfKnowledge knowledge, SettingsService settings,
     IModelCapabilitySource capabilities, IOcrProvider provider)
 {
+    public int PdfConcurrency { get; set; } = 8;
+    public int PresentationConcurrency { get; set; } = 8;
     private readonly SemaphoreSlim worker = new(1, 1);
     public async Task<Result<PdfScanState>> RunAsync(Guid library, Guid collection, bool allow,
         IProgress<PdfScanProgress>? progress = null, CancellationToken ct = default)
@@ -31,17 +33,21 @@ public sealed class AutomaticPdfScanService(IAutomaticPdfKnowledge knowledge, Se
             stage = "读取扫描状态";
             var state = await knowledge.ScanStateAsync(library, collection, ct);
             var fingerprint = state.SourceFingerprint;
+            if (state.SourceKind == "presentation" && state.PendingPages.Count > 0 && knowledge is IStreamingPresentationKnowledge streaming)
+                return await new PresentationScanPipeline(knowledge, streaming, settings, capabilities, provider)
+                    .RunAsync(library, state, PresentationConcurrency, progress, ct);
             while (state.PendingPages.Count > 0)
             {
                 ct.ThrowIfCancellationRequested();
-                if (state.SourceFingerprint != fingerprint) return Result<PdfScanState>.Fail(ErrorCode.SOURCE_UNAVAILABLE, "PDF已变化，请重新导入。" );
+                if (state.SourceFingerprint != fingerprint) return Result<PdfScanState>.Fail(ErrorCode.SOURCE_UNAVAILABLE, "资料已变化，请重新导入。" );
                 var batch = state.PendingPages.Take(20).ToArray();
                 var completed = state.ReadyPages.Count;
                 var batchNumber = (batch[0] - 1) / 20 + 1;
                 void Report(string message) => progress?.Report(new(completed, state.TotalPages, batchNumber, (state.TotalPages + 19) / 20, message));
                 Report("正在准备扫描页，可随时取消；已完成页已保存。");
-                var staging = new Staging(knowledge, () => { completed++; Report("已保存本页识别结果。"); });
-                var ocr = new OcrService(staging, settings, capabilities, provider);
+                var reporting = new object();
+                var staging = new Staging(knowledge, () => { lock (reporting) { completed++; Report("已保存本页识别结果。"); } });
+                var ocr = new OcrService(staging, settings, capabilities, provider, concurrency: PdfConcurrency == 4 ? 4 : 8);
                 stage = $"准备第{batch[0]}至{batch[^1]}页";
                 var prepared = await ocr.PrepareAsync(library, collection, batch, ct);
                 if (!prepared.Ok) return new(false, state, prepared.Error);

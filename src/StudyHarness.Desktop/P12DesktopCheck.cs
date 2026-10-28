@@ -102,7 +102,7 @@ internal static class P12DesktopCheck
                 await planning.FormSubmissionAsync(); Check(planning.CanSendPlan,"form-submission-saves-and-previews");
                 await planning.ProposeAsync(false); Check(planning.Preview == "" && provider.Calls == 0,"deny-clears-no-dispatch");
                 await planning.FormSubmissionAsync(); await planning.ProposeAsync(true);
-                Check(planning.Summary.Contains("集合与数学思维"),"plan-through-same-send-chain");
+                Check(planning.Summary.Contains("集合与数学思维") && planning.Summary.Contains("教学覆盖与节奏") && planning.Summary.Contains("不限制总课数"),"plan-through-same-send-chain");
                 planning.AckFrozen = true;
                 var confirm = FindButtons(window).Single(b => System.Windows.Automation.AutomationProperties.GetAutomationId(b) == "ConfirmPlan");
                 Click(confirm); await Wait(() => planning.Request == "" && !planning.Busy);

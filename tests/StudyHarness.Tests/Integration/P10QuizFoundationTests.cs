@@ -37,6 +37,18 @@ public sealed class P10QuizFoundationTests : IDisposable
             Enumerable.Range(0, choices).Select(i => new LessonOption("id" + i, (i + 2).ToString())).ToArray(),
             "id0", "原选项A正确：集合有2个元素。矩阵 A 与变量 a 不是选项编号。")], ["s1"], schema);
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("{malformed optional drawing")]
+    [InlineData("{\"type\":\"flow\",\"nodes\":[\"发送\",\"接收\"],\"edges\":[[0,1]]}")]
+    public void OptionalDiagramNeverBecomesLessonAcceptanceRequirement(string? drawing)
+    {
+        var lesson = Content(3, 4);
+        if (drawing is not null) lesson = lesson with { Blocks = lesson.Blocks.Append(new LessonBlock("optional_visual", "diagram", drawing)).ToArray() };
+        var result = new TheoryLessonParser().Parse(JsonSerializer.Serialize(lesson, Wire.Options), Sources);
+        Assert.True(result.Ok, result.Error?.Message);
+    }
+
     private async Task<(PlanningDraft Plan, LessonIdentity Lesson)> Publish(int choices = 4)
     {
         var planning = new SqlitePlanningStore(root);

@@ -27,9 +27,41 @@ public sealed class AdaptivePlanTests : IDisposable
         var collection = new PlanCollection(Subject, new(Subject, "v1", new string('B', 64), true,
             [new("page-1", "1", "page", "ocrReady", new string('A', 64), null, ["unverified"])]), [source.Reference]);
         var text = CourseMaterials.WithQuality([collection], source, "原文");
-        Assert.Contains("OCR待复核", text); Assert.EndsWith("原文", text);
+        Assert.Contains("[宿主来源类型：OCR]", text); Assert.EndsWith("原文", text);
+        Assert.Contains("正常用于讲解、例子和测验", text);
+        Assert.Contains("同页其他清楚内容仍可使用", text);
+        Assert.Contains("不得猜补", text);
         Assert.Equal("原文", CourseMaterials.WithQuality([collection], source with { Reference = source.Reference with { VersionId = Guid.NewGuid() } }, "原文"));
         Assert.Equal("原文", CourseMaterials.WithQuality(null, source, "原文"));
+        var mixed = "表格A=12，图中A→B。公式$x^2$。另一处[无法辨认]，图2[图示需人工复核]。";
+        Assert.EndsWith(mixed, CourseMaterials.WithQuality([collection], source, mixed));
+    }
+
+    [Fact]
+    public void WeeklyPace_ChangesWeeksButKeepsAllEightChaptersAndLessons()
+    {
+        var nodes = Enumerable.Range(1, 64).Select(i => new PlannedNode("n" + i,
+            $"第{(i - 1) / 8 + 1}章知识点{i}", "theory", ["定义并逐步计算实例"], [], 60, null)).ToArray();
+        var candidate = Candidate with { Nodes = nodes, Strategy = Candidate.Strategy! with { TeachingModes = ["theory"], MaterialCapabilities = [] } };
+        var slow = PlanRules.Validate(Subject, Input with { WeeklyMinutes = 60 }, candidate with { WeeklyMinutes = 60 }, Sources, null);
+        var fast = PlanRules.Validate(Subject, Input with { WeeklyMinutes = 600 }, candidate with { WeeklyMinutes = 600 }, Sources, null);
+        Assert.True(slow.Ok); Assert.True(fast.Ok);
+        Assert.Equal(64, slow.Value!.Weeks.Count); Assert.Equal(7, fast.Value!.Weeks.Count);
+        Assert.Equal(nodes.Select(n => n.Key), slow.Value.Weeks.SelectMany(w => w.NodeKeys));
+        Assert.Equal(nodes.Select(n => n.Key), fast.Value.Weeks.SelectMany(w => w.NodeKeys));
+        Assert.Equal(3840, fast.Value.Weeks.Sum(w => w.EstimatedMinutes));
+        Assert.Contains("不限制总课数", PlanTeachingCoverage.Describe(fast.Value));
+    }
+
+    [Fact]
+    public void PlanningGuidance_PreservesTailDepthAndDistinguishesSamplesFromMissingSources()
+    {
+        Assert.Contains(AdaptivePlanningPrompt.DepthGuidance, AdaptivePlanningPrompt.Text);
+        Assert.Contains("不预设40课", AdaptivePlanningPrompt.Text);
+        Assert.Contains("从最后一章向前逐章审查", AdaptivePlanningPrompt.Text);
+        Assert.Contains("不等于本地未取得整章正文", AdaptivePlanningPrompt.Text);
+        Assert.Contains("不套用固定课数", PlanningPrompt.Text);
+        Assert.DoesNotContain("通常4至12课", PlanningPrompt.Text);
     }
 
     [Fact]
@@ -101,6 +133,9 @@ public sealed class AdaptivePlanTests : IDisposable
         var result = PlanRules.Validate(Subject, Input, candidate, Sources, null, [collection]); Assert.True(result.Ok, result.Error?.Message);
         Assert.True(PlanRules.Validate(Subject, Input, candidate with { Coverage = candidate.Coverage!.Select(e => e.State == "included" ? e with { Reason = "本节支持这些课程" } : e).ToArray() }, Sources, null, [collection]).Ok);
         Assert.NotNull(result.Value!.Collections);
+        var teaching = PlanTeachingCoverage.Describe(result.Value);
+        Assert.Contains("资料页1–1（1页）：理论1课、实践1课", teaching);
+        Assert.DoesNotContain("资料页1–2", teaching); // Unavailable pages cannot masquerade as taught pages.
         Assert.False(PlanRules.Validate(Subject, Input, Candidate, Sources, null, [collection]).Ok);
         Assert.False(PlanRules.Validate(Subject, Input, candidate with { Coverage = candidate.Coverage!.Select(e => e with { State = "included", NodeKeys = ["n1"], Reason = null }).ToArray() }, Sources, null, [collection]).Ok);
         var changed = collection with { Manifest = collection.Manifest with { Version = "v2" } };

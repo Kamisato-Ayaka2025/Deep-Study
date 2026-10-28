@@ -24,6 +24,12 @@ public interface IKnowledgeStore
     Task<KnowledgeSearch> SearchAsync(Guid libraryId, string topic, IReadOnlyCollection<Guid> preferredSources, int limit = 20, CancellationToken ct = default);
     Task<ResolvedSource> ResolveAsync(SourceRef reference, CancellationToken ct = default);
 }
+public sealed record ImportProgress(int Completed, int Total, string Message);
+public interface IImportProgressKnowledge
+{
+    Task<Result<ImportReport>> ImportWithProgressAsync(Command<HostSelection> command, Guid libraryId,
+        IProgress<ImportProgress> progress, CancellationToken ct = default);
+}
 public interface ICredentialReader
 {
     Task<string?> ReadKeyAsync(CancellationToken ct);
