@@ -31,7 +31,7 @@ if ($entries.Count -lt 10) { throw 'Incomplete upgrade manifest.' }
 foreach ($entry in $entries) {
     $relative = [string]$entry.path
     if ([IO.Path]::IsPathRooted($relative) -or $relative -match '(^|[\\/])\.\.?([\\/]|$)|:') { throw 'Invalid package path.' }
-    if ($relative -notmatch '^(ReaderAssets[\\/].+\.(js|css|html|woff2?|ttf)|runtimes[\\/](win-x64|win-x86|win-arm64)[\\/]native[\\/][^\\/]+\.dll|[^\\/]+\.(dll|exe|deps\.json|runtimeconfig\.json))$') { throw "Not an application file: $relative" }
+    if ($relative -notmatch '^(ReaderAssets[\\/](.+\.(js|css|html|woff2?|ttf)|vendor[\\/](LICENSE|provenance\.json))|runtimes[\\/](win-x64|win-x86|win-arm64)[\\/]native[\\/][^\\/]+\.dll|[^\\/]+\.(dll|exe|deps\.json|runtimeconfig\.json))$') { throw "Not an application file: $relative" }
     if ($seen.ContainsKey($relative.ToLowerInvariant())) { throw 'Duplicate package entry.' }
     $seen[$relative.ToLowerInvariant()] = $true
     $source = Join-Path $payload $relative
@@ -68,11 +68,18 @@ try {
     @{from=$oldVersion;to='1.10.0';files=$entries.Count;dataModified=$false} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'upgrade-result.json') -Encoding UTF8
 } catch {
     $failure = $_
+    $rollbackErrors = New-Object 'Collections.Generic.List[string]'
     for ($i=$applied.Count-1; $i -ge 0; $i--) {
         $entry = $applied[$i]
-        if ($entry.existed) { Copy-Item -LiteralPath $entry.backup -Destination $entry.target -Force }
-        elseif (Test-Path -LiteralPath $entry.target) { Remove-Item -LiteralPath $entry.target }
+        try {
+            if ($entry.existed) {
+                # A locked file may have rejected the write without changing at all.
+                if ((Test-Path -LiteralPath $entry.target) -and (Get-FileHash -LiteralPath $entry.target).Hash -eq (Get-FileHash -LiteralPath $entry.backup).Hash) { continue }
+                Copy-Item -LiteralPath $entry.backup -Destination $entry.target -Force
+            } elseif (Test-Path -LiteralPath $entry.target) { Remove-Item -LiteralPath $entry.target }
+        } catch { $rollbackErrors.Add($entry.target) }
     }
+    if ($rollbackErrors.Count) { throw "Upgrade failed and $($rollbackErrors.Count) program files could not be restored. Close other programs and restore the program-file backup at $backup. Data files were not touched. Original failure: $failure" }
     throw $failure
 }
 Write-Output "Upgraded $oldVersion to 1.10.0. Existing data and launchers are unchanged."
