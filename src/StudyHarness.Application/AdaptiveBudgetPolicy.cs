@@ -22,7 +22,7 @@ public static class AdaptiveBudgetPolicy
     // Count the entire serialized text request, including tools/history. UTF-8 bytes
     // are a conservative admission estimate, not an assertion of exact model tokens.
     public static ContextBudget Create(ModelCapabilities capability, string model,
-        string serializedTextRequest, bool plan, DateTimeOffset now, bool reasoningLesson = false)
+        string serializedTextRequest, bool plan, DateTimeOffset now, bool reasoningLesson = false, bool contextLesson = false, bool practiceLesson = false)
     {
         ArgumentNullException.ThrowIfNull(serializedTextRequest);
         var verified = IsFresh(capability, model, now);
@@ -30,9 +30,9 @@ public static class AdaptiveBudgetPolicy
         // User-approved lesson fallback only. Planning/OCR and verified model limits stay unchanged.
         if (!verified && reasoningLesson) effective = effective with { ContextWindow = 65536 };
         var input = Encoding.UTF8.GetByteCount(serializedTextRequest);
-        var reserve = Math.Min(plan || reasoningLesson ? 32768 : 16384, effective.MaxOutputTokens);
+        var reserve = Math.Min(contextLesson ? 65536 : plan || reasoningLesson ? 32768 : 16384, effective.MaxOutputTokens);
         const int margin = 8192;
-        var inputLimit = plan ? 786432 : 393216;
+        var inputLimit = plan || contextLesson || practiceLesson ? 786432 : 393216;
         if (input > inputLimit || (long)input + reserve + margin > effective.ContextWindow)
             throw new ContextBudgetExceededException(input, reserve, margin, effective.ContextWindow, IsFresh(capability, model, now), inputLimit);
         return new(input, reserve, margin, 4 * 1024 * 1024, 3, 2, plan ? 600 : 300, plan ? 900 : 600);

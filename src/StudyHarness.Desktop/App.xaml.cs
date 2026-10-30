@@ -45,7 +45,7 @@ public partial class App : System.Windows.Application
             var knowledge = new KnowledgeStore(root, webSources);
             var service = new SettingsService(store, knowledge);
             var capabilities = new DeepSeekCapabilities(root, store, DeepSeekCapabilities.CreateClient());
-            var vm = new ShellViewModel(service, new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient())), new SafeLog(Path.Combine(root, "logs", "operations.jsonl")), Path.GetFullPath(root), locations);
+            var vm = new ShellViewModel(service, new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient())), new SafeLog(Path.Combine(root, "logs", "operations.jsonl")), Path.GetFullPath(root), locations, new CacheCatalog(root));
             var workspace = new WorkspaceViewModel(new WorkspaceService(knowledge, service,
                 new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient()))),
                 new OcrService(knowledge, service, capabilities, new DeepSeekOcrProvider(store, DeepSeekProvider.CreateClient())),
@@ -58,9 +58,9 @@ public partial class App : System.Windows.Application
             var fixture = e.Args.Contains("--p4-demo") || e.Args.Contains("--p4-selfcheck");
             if (fixture && !File.Exists(Path.Combine(root, "p4-synthetic.marker"))) throw new InvalidOperationException("Synthetic data root required");
             IModelProvider provider = fixture ? new TheoryFixtureProvider(e.Args.Contains("--restart-check") ? "重生成检查" : "") : new DeepSeekTheoryProvider(store, DeepSeekProvider.CreateClient());
-            var generation = new GenerationService(plans, learning, learning, knowledge, service, new ModelEgress(provider, fixture ? null : capabilities), new TheoryLessonParser(), e.Args.Contains("--p4-selfcheck"));
+            var generation = new GenerationService(plans, learning, learning, knowledge, service, new ModelEgress(provider, fixture ? null : capabilities), new TheoryLessonParser(), e.Args.Contains("--p4-selfcheck"), new BookKnowledgeCache(root));
             var planning = new PlanningViewModel(new PlanningService(plans, knowledge, service,
-                new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient()), capabilities), new PlanParser(), learning, explicitSourcesOnly: true), learning,
+                new ModelEgress(new DeepSeekProvider(store, DeepSeekProvider.CreateClient()), capabilities), new PlanParser(), learning, explicitSourcesOnly: true, knowledgeCache: new BookKnowledgeCache(root)), learning,
                 new WebLearningService(webSources, knowledge, knowledge, Path.Combine(root, "knowledge"), new OiDirectory(OiDirectory.CreateClient())), new SqlitePlanningSessionStore(root));
             if (await knowledge.CurrentAsync() is null)
                 await knowledge.SwitchAsync(new(Guid.NewGuid(), 0, HostSelection.FromFolderPicker(Path.Combine(root, "knowledge"))));
@@ -74,6 +74,30 @@ public partial class App : System.Windows.Application
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             tray = new TrayLifetime(MainWindow, () => Shutdown());
             await ((MainWindow)MainWindow).Ready.Task;
+            if (e.Args.Contains("--p35-selfcheck"))
+            {
+                await P35DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1]); return;
+            }
+            if (e.Args.Contains("--p34-selfcheck"))
+            {
+                await P34DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1]); return;
+            }
+            if (e.Args.Contains("--p33-selfcheck"))
+            {
+                await P33DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1]); return;
+            }
+            if (e.Args.Contains("--p32-selfcheck"))
+            {
+                await P32DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1]); return;
+            }
+            if (e.Args.Contains("--p31-selfcheck"))
+            {
+                await P31DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1]); return;
+            }
+            if (e.Args.Contains("--p30-selfcheck"))
+            {
+                await P30DesktopCheck.RunAsync(root, e.Args[Array.IndexOf(e.Args, "--evidence") + 1]); return;
+            }
             if (locationCheck)
             {
                 await P29DesktopCheck.RunAsync(root, locationEvidence!, locations); return;

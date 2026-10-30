@@ -1,0 +1,11 @@
+2026-10-30最新界面修订：主观题参考答案下只显示掌握确认，不再提供复习按钮。旧self-review存储记录保持可读，其他作答与判分契约不变。
+
+# P32 实验与测验契约
+
+新计划type新增quiz，lab=null，strategy.teachingModes支持quiz；CourseKind保持Theory/Lab原数值，追加Quiz。仅导入考题时提示建议1–2课，零课或多于2课不因数量被拒。未导入考题却返回quiz时，本地归为theory；paper-exercise实验归为theory，保留目标、前置和来源，继承该纸笔课的实验改为独立。旧冻结计划和历史paper-exercise材料仍可读，不进行数据迁移。
+
+新quiz-v1请求使用schemaVersion=5；绑定导入考题原文并附考点及冲突指导，不把整本教材正文带入测验。主观题保留原型，不强制四选一；模型多余正文在本地丢弃，host按题生成question块，不增加教学例题门槛。无法自动判分的选项题可转为自行核对题，保留选项文字和可用解析。仍需至少一个可读题目；模型未提供答案时明确说明，不在本地编造答案。
+
+私有LessonQuestion可含Kind=written与ReferenceAnswer；ReaderQuestion只含题干、公开选项、已提交ResponseText及许可显示的Answer。主观题提交非空作答（也可注明纸上作答）后显示参考答案；self-review保留待掌握状态，self-correct记录自行核对；选择题沿用自动判分。主观题事件NodeSelfAssessed，attempts区分written-response/self-assessed。完成记录不可反悔规则保持，但UI明确不是机器验证。重生成归档旧作答与公开答案，新题清除逐题掌握状态；历史仅可读。
+
+JSON新增字段保持向后可读，无SQLite结构迁移；新版本数据不承诺旧版本理解quiz类型。原库备份及旧程序包保留。新课程布局缓存版本更新，已有教材/试卷扫描和知识提取缓存继续复用；教学结构变更按既有映射复用规则处理。

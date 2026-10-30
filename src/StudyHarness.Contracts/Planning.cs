@@ -3,7 +3,8 @@ using System.Text.Json.Serialization;
 namespace StudyHarness.Contracts;
 
 public sealed record PlanningInput(string Request, string? Background, string? Goal, int? WeeklyMinutes,
-    string Scope, IReadOnlyList<SourceRef> PreferredReferences);
+    string Scope, IReadOnlyList<SourceRef> PreferredReferences,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<Guid>? ExamCollectionIds = null);
 public sealed record PlanDefault(string Field, string Value, string Reason);
 public sealed record PlannedLab(string Mode, string? PreviousLabKey, string Toolchain,
     IReadOnlyList<string> SourceKeys, string Rationale,
@@ -18,7 +19,8 @@ public sealed record PlanCandidate(string Title, string Background, string Goal,
     int SchemaVersion = 1,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlannedAlgorithm>? Algorithms = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] StrategyDecision? Strategy = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlanCoverage>? Coverage = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlanCoverage>? Coverage = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<KnowledgeCoverage>? KnowledgeCoverage = null);
 public sealed record PlanCoverage(string EntryKey, string State, IReadOnlyList<string> NodeKeys, string? Reason);
 public sealed record PlanSource(string Key, SourceRef Reference, bool UserPreferred);
 public sealed record PlanWeek(int Index, IReadOnlyList<string> NodeKeys, int EstimatedMinutes);

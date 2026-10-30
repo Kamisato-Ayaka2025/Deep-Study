@@ -14,7 +14,7 @@ internal static class WindowsPdfRenderer
         if (Convert.ToHexString(await SHA256.HashDataAsync(source.Stream, ct)) != fingerprint) throw new InvalidDataException("Source changed; reimport before OCR");
         source.Stream.Position = 0; using var input = source.Stream.AsRandomAccessStream();
         var document = await PdfDocument.LoadFromStreamAsync(input).AsTask(ct);
-        if (document.PageCount > 2000 || pages.Any(p => p < 1 || p > document.PageCount)) throw new InvalidDataException("Page range");
+        if (document.PageCount > 10000 || pages.Any(p => p < 1 || p > document.PageCount)) throw new InvalidDataException("Page range");
         var result = new List<RenderedPage>();
         foreach (var number in pages)
         {

@@ -79,10 +79,24 @@ public static class TeachingPages
         var bodyStart = (intro || courseMetadata) && teachingSection.Success ? teachingSection.Index : 0;
         var lines = Regex.Matches(text, @"(?m)^.*(?:\r?\n|$)").Cast<Match>().Where(m => m.Length > 0).ToArray();
         var spans = new List<SourceSpan>();
+        var fenced = false;
+        var furniture = false;
         foreach (var line in lines)
         {
             if (line.Index < bodyStart) continue;
-            if (Regex.IsMatch(line.Value, @"(?i)^\s*(advertisement|sponsored|广告|buy now|subscribe|cookie|©)|^\s*\[[^\]]+\]\([^)]*\)\s*$")) continue;
+            var fenceLine = Regex.IsMatch(line.Value, @"^\s*(```|~~~)");
+            if (fenced)
+            {
+                spans.Add(new(uri.AbsoluteUri, null, line.Index, line.Index + line.Length));
+                if (fenceLine) fenced = false;
+                continue;
+            }
+            var heading = Regex.Match(line.Value, @"^\s*#{1,6}\s+(.+?)\s*$");
+            if (heading.Success) furniture = Regex.IsMatch(heading.Groups[1].Value,
+                @"^(广告|赞助推广|相关推荐|推荐阅读|评论区|读者评论|订阅本站|Advertisement|Sponsored|Related posts|Comments|Newsletter)$", RegexOptions.IgnoreCase);
+            if (furniture || Regex.IsMatch(line.Value,
+                @"^\s*(?:广告[:：]|赞助推广[:：]|advertisement\b|sponsored\s+(?:by|content)|buy now\b|subscribe to\b|©|接受所有Cookie|accept all cookies)", RegexOptions.IgnoreCase)) continue;
+            if (fenceLine) fenced = true;
             spans.Add(new(uri.AbsoluteUri, null, line.Index, line.Index + line.Length));
         }
         var extracted = string.Concat(spans.Select(s => text[s.Start..s.End]));
@@ -106,4 +120,11 @@ public static class TeachingPages
             blocked ? ["untrustedInstructionsOrAccessBlock"] : mathMarkupMissing ? ["mathMarkupUnavailable", "contentNotIndependentlyVerified"] : ["contentNotIndependentlyVerified"], usable ? spans : []);
     }
     public static string Extract(WebPage page, PageAssessment assessment) => string.Concat(assessment.TeachingSpans.Select(s => page.Content[s.Start..s.End]));
+    public static WebPage Clean(WebPage page, string query)
+    {
+        var original = page with { Content = page.OriginalContent ?? page.Content, Assessment = null };
+        var assessment = Assess(original, query);
+        if (!assessment.UsableForTeaching) throw new InvalidDataException("网页没有可用教学正文。");
+        return original with { Content = Extract(original, assessment), OriginalContent = original.Content, Assessment = assessment };
+    }
 }

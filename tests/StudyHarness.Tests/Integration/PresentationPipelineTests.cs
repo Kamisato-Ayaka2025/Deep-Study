@@ -47,6 +47,8 @@ public sealed class PresentationPipelineTests : IDisposable
     private sealed class Provider(Source source) : IOcrProvider
     {
         public int Calls, Active, Peak;
+        public int ExpectedConcurrency;
+        private readonly TaskCompletionSource concurrentStart = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Fail;
         public readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource? Hold;
@@ -57,6 +59,11 @@ public sealed class PresentationPipelineTests : IDisposable
             Started.TrySetResult();
             try
             {
+                if (ExpectedConcurrency > 0)
+                {
+                    if (active == ExpectedConcurrency) concurrentStart.TrySetResult();
+                    await concurrentStart.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+                }
                 if (Hold is not null) await Hold.Task; // Deliberately ignores cancellation: late results must be rejected.
                 await Task.Delay(25, ct);
                 return Fail ? Result<OcrPageResult>.Fail(ErrorCode.AUTH_INVALID, "fixture failure") : Result<OcrPageResult>.Success(new("Page " + request.Page.Page, [], new(1, 1, 2), request.Model, OcrService.PromptVersion));
@@ -74,7 +81,7 @@ public sealed class PresentationPipelineTests : IDisposable
     [InlineData(16)]
     public async Task StreamsOnceAtSelectedConcurrencyWithBoundedImagesAndDurablePages(int concurrency)
     {
-        var source = new Source(64); var provider = new Provider(source); var service = Service(source, provider, concurrency);
+        var source = new Source(64); var provider = new Provider(source) { ExpectedConcurrency = concurrency }; var service = Service(source, provider, concurrency);
         var result = await service.RunAsync(Guid.Empty, source.Id, true);
         Assert.True(result.Ok, result.Error?.Message); Assert.Equal(concurrency, provider.Peak);
         Assert.Equal(64, source.Saved.Count); Assert.Empty(source.Staged); Assert.Equal(1, source.Opens); Assert.Equal(1, source.Closed);

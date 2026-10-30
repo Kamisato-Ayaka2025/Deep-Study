@@ -13,11 +13,11 @@ public sealed class CppTests : IDisposable
     private static readonly PlanSource[] Sources = [new("s1", new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new('A', 64), new("synthetic", null, null, "1")), true)];
     private static bool Valid(PlanCandidate plan) => PlanRules.Validate(Guid.NewGuid(), Input, plan, Sources, null).Ok;
     [Fact]
-    public void MultiAlgorithmTheory_RequiresEveryAlgorithmLabAndDependency()
+    public void MultiAlgorithmTheory_AllowsOptionalLabsButChecksScheduledDependencies()
     {
         var plan = CppFixture.Candidate(Input); Assert.True(Valid(plan));
         Assert.True(new PlanParser().Parse(JsonSerializer.Serialize(plan, Wire.Options)).Ok);
-        Assert.False(Valid(plan with { Nodes = plan.Nodes.Take(2).ToArray() }));
+        Assert.True(Valid(plan with { Nodes = plan.Nodes.Take(2).ToArray() }));
         Assert.False(Valid(plan with { Algorithms = null }));
         Assert.False(Valid(plan with { Algorithms = [new("a1", "同名"), new("a2", "同名")] }));
         Assert.False(Valid(plan with { Nodes = plan.Nodes.Select(n => n.Key == "n2" ? n with { AlgorithmKeys = ["unknown"] } : n).ToArray() }));

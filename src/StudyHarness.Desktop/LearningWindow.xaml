@@ -24,7 +24,7 @@
             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="{Binding Title}" Style="{StaticResource DsH1}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                 <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                    <Border Style="{StaticResource DsChipPrimary}"><TextBlock Text="理论课" Style="{StaticResource DsCaption}" Foreground="{StaticResource DsPrimaryBrush}"/></Border>
+                    <Border Style="{StaticResource DsChipPrimary}"><TextBlock Text="{Binding LessonTypeLabel}" Style="{StaticResource DsCaption}" Foreground="{StaticResource DsPrimaryBrush}"/></Border>
                     <Border Style="{StaticResource DsChip}" Margin="8,0,0,0"><TextBlock Text="阅读位置自动保存" Style="{StaticResource DsCaption}"/></Border>
                 </StackPanel>
             </StackPanel>
@@ -84,7 +84,7 @@
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE8A5;" Style="{StaticResource DsIconGlyph}" FontSize="12" Foreground="{StaticResource DsPrimaryBrush}"/>
-                                <TextBlock Text="课文" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource DsBodyBrush}" Margin="7,0,0,0"/>
+                                <TextBlock Text="{Binding ContentLabel}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource DsBodyBrush}" Margin="7,0,0,0"/>
                             </StackPanel>
                             <TextBlock Grid.Column="1" Text="{Binding Status}" Style="{StaticResource DsCaption}" MaxWidth="520" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" AutomationProperties.AutomationId="LearningStatus" ToolTip="{Binding Status}"/>
                         </Grid>

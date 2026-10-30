@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace StudyHarness.Domain;
 
-public enum CourseKind { Theory, Lab }
+public enum CourseKind { Theory, Lab, Quiz }
 
 public sealed record CourseDefinition(Guid Id, int Order, CourseKind Kind, string Title,
     IReadOnlyList<string> Objectives, int EstimatedMinutes, IReadOnlyList<Guid> PrerequisiteIds);
@@ -90,7 +90,7 @@ public sealed class CourseGraph
         return new(prerequisitesMet,
             facts.PlanConfirmed && canAct && !facts.HasPublishedLesson && !facts.HasActiveGenerationTask,
             facts.HasPublishedLesson,
-            node.Kind == CourseKind.Theory && facts.HasPublishedLesson && canAct,
+            node.Kind is (CourseKind.Theory or CourseKind.Quiz) && facts.HasPublishedLesson && canAct,
             node.Kind == CourseKind.Lab && facts.PlanConfirmed && facts.HasPublishedLesson && canAct);
     }
 }

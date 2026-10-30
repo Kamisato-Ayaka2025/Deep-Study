@@ -16,6 +16,7 @@ public sealed partial class SqliteLearningStore
 {
     private QuizOptionOrder OptionOrder(SqliteConnection db, SqliteTransaction tx, LessonIdentity lesson, LessonQuestion question)
     {
+        if (question.Kind == "written") return new(1, []);
         var ids = question.Options.Select(o => o.Id).ToArray();
         var json = Scalar(db, tx,
             "SELECT json FROM quiz_option_orders WHERE subject=$p0 AND node=$p1 AND lesson_hash=$p2 AND question=$p3",

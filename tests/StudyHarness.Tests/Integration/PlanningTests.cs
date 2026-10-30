@@ -91,7 +91,7 @@ public sealed class PlanningTests : IDisposable
     [InlineData("Math", false, true)]
     [InlineData("Math", true, false)]
     [InlineData("Concepts", false, true)]
-    [InlineData("SimpleC", false, false)]
+    [InlineData("SimpleC", false, true)]
     [InlineData("SimpleC", true, true)]
     [InlineData("OutOfScope", false, false)]
     public void ScopeAndPracticeRules_AreDeterministic(string scope, bool lab, bool accepted)
@@ -134,7 +134,7 @@ public sealed class PlanningTests : IDisposable
             var node = JsonNode.Parse(text)!; node[field] = "injection"; Assert.False(parser.Parse(node.ToJsonString()).Ok);
         }
         Assert.False(parser.Parse("null").Ok);
-        var invalid = JsonNode.Parse(text)!; invalid["nodes"]![0]!["type"] = "quiz"; Assert.False(parser.Parse(invalid.ToJsonString()).Ok);
+        var invalid = JsonNode.Parse(text)!; invalid["nodes"]![0]!["type"] = "unknown"; Assert.False(parser.Parse(invalid.ToJsonString()).Ok);
         invalid = JsonNode.Parse(text)!; invalid["nodes"]![0]!["title"] = " "; Assert.False(parser.Parse(invalid.ToJsonString()).Ok);
     }
 

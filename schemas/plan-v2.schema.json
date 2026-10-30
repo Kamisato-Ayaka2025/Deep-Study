@@ -18,6 +18,56 @@
     "coverage"
   ],
   "properties": {
+    "knowledgeCoverage": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "knowledgeKey",
+          "state",
+          "nodeKeys",
+          "reason"
+        ],
+        "properties": {
+          "knowledgeKey": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "contextKeys": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          "state": {
+            "enum": [
+              "included",
+              "excluded"
+            ]
+          },
+          "nodeKeys": {
+            "type": "array",
+            "maxItems": 240,
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          }
+        }
+      }
+    },
     "schemaVersion": {
       "const": 2
     },
@@ -101,7 +151,8 @@
           "type": {
             "enum": [
               "theory",
-              "lab"
+              "lab",
+              "quiz"
             ]
           },
           "objectives": {
@@ -249,7 +300,8 @@
             "enum": [
               "theory",
               "exercise",
-              "project"
+              "project",
+              "quiz"
             ]
           }
         },

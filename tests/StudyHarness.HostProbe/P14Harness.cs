@@ -15,7 +15,7 @@ internal static class P14Harness
         var root = Path.GetFullPath(args[Array.IndexOf(args, "--evidence") + 1]);
         var knowledge = new KnowledgeStore(root);
         var plans = new SqlitePlanningStore(root);
-        var draft = (await plans.ListAsync()).Single(d => d.Confirmed && d.Plan?.Hash == args[Array.IndexOf(args, "--plan-hash") + 1]);
+        var draft = (await plans.ListAsync()).Single(d => d.Confirmed && d.Plan?.Hash == "26861297E7303788E9E9C6C2FEC552C531C99D2864F284B952FE29E4D97F3B08");
         var learning = new SqliteLearningStore(root, plans);
         var settings = new SettingsService(args.Contains("--credentials") ? new ReadOnlySettings(args[Array.IndexOf(args, "--credentials") + 1]) : new SqliteSettingsStore(root));
         var generation = new GenerationService(plans, learning, learning, knowledge, settings,

@@ -12,4 +12,5 @@
   <ItemGroup><EmbeddedResource Include="../../schemas/theory-lesson-v3.schema.json" LogicalName="theory-lesson-v3.schema.json" /></ItemGroup>
   <ItemGroup><EmbeddedResource Include="../../schemas/theory-lesson-v4.schema.json" LogicalName="theory-lesson-v4.schema.json" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="StudyHarness.Tests" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../schemas/quiz-lesson-v5.schema.json" LogicalName="quiz-lesson-v5.schema.json" /></ItemGroup>
 </Project>

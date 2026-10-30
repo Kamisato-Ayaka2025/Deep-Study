@@ -134,7 +134,7 @@ public sealed partial class SqliteLearningStore : ILearningStore, ITheoryPublish
         var definition = draft?.Plan?.Candidate.Nodes.SingleOrDefault(n => n.Key == node);
         var result = draft?.Confirmed != true || draft.Plan is null
             ? Result<T>.Fail(ErrorCode.PLAN_NOT_CONFIRMED, "请先确认完整学习计划。")
-            : definition is null || definition.Type != "theory" ? Bad<T>("理论课程不存在。")
+            : definition is null || definition.Type is not ("theory" or "quiz") ? Bad<T>("理论课程不存在。")
             : action(db, tx, draft, definition);
         Execute(db, tx, "INSERT INTO requests VALUES($p0,$p1,$p2,$p3)", command.RequestId.ToString(), hash, Json(result), subject.ToString());
         ct.ThrowIfCancellationRequested(); tx.Commit(); return result;
@@ -169,14 +169,14 @@ public sealed partial class SqliteLearningStore : ILearningStore, ITheoryPublish
         return new(subjectId, nodeKey, hash);
     }
 
-    private static void ArchiveCurrent(SqliteConnection db, SqliteTransaction tx, Guid subject, string node, StoredLesson old)
+    private void ArchiveCurrent(SqliteConnection db, SqliteTransaction tx, Guid subject, string node, StoredLesson old)
     {
         var questions = old.Content.Questions.Select(q => {
             var correct = Mastered(db, tx, subject, node, q.Id);
-            return QuizProjection.Project(q, new(1, q.Options.Select(o => o.Id).ToArray()), correct);
+            return ProjectStored(db, tx, new(subject, node, old.Hash), q, correct);
         }).ToArray();
         var position = Scalar(db, tx, "SELECT json FROM positions WHERE subject=$p0 AND node=$p1", subject.ToString(), node) is string json ? Read<ReadingPosition>(json) : null;
-        var reader = new LessonReader(new(subject, node, old.Hash), old.PlanHash, old.Content.Blocks, questions, old.Sources, false, Completion(db, tx, subject, node), position);
+        var reader = new LessonReader(new(subject, node, old.Hash), old.PlanHash, old.Content.Blocks, questions, old.Sources, false, Completion(db, tx, subject, node), position, old.Content.SchemaVersion == 5 ? "quiz" : "theory");
         Execute(db, tx, "INSERT OR IGNORE INTO lesson_history VALUES($p0,$p1,$p2,$p3)", subject.ToString(), node, old.Hash,
             Json(new StoredHistory(old, new(old.Hash, DateTimeOffset.UtcNow, reader))));
         Execute(db, tx, "DELETE FROM mastery WHERE subject=$p0 AND node=$p1", subject.ToString(), node);
@@ -190,7 +190,7 @@ public sealed partial class SqliteLearningStore : ILearningStore, ITheoryPublish
         using (var rows = cmd.ExecuteReader()) while (rows.Read()) stored.Add(Read<StoredHistory>(rows.GetString(0)));
         var items = stored.Select(h => h.Public with { Reader = h.Public.Reader with
         {
-            Questions = h.Original.Content.Questions.Select(q => QuizProjection.Project(q,
+            Questions = h.Original.Content.Questions.Select(q => q.Kind == "written" ? h.Public.Reader.Questions.Single(old => old.Id == q.Id) : QuizProjection.Project(q,
                 OptionOrder(db, tx, new(subjectId, nodeKey, h.Original.Hash), q),
                 h.Public.Reader.Questions.Single(old => old.Id == q.Id).EverCorrect)).ToArray()
         }}).ToList();
@@ -214,18 +214,33 @@ public sealed partial class SqliteLearningStore : ILearningStore, ITheoryPublish
         var questions = lesson.Content.Questions.Select(q =>
         {
             var mastered = Mastered(db, tx, subjectId, nodeKey, q.Id);
-            return QuizProjection.Project(q, OptionOrder(db, tx, new(subjectId, nodeKey, lesson.Hash), q), mastered);
+            return ProjectStored(db, tx, new(subjectId, nodeKey, lesson.Hash), q, mastered);
         }).ToArray();
         var position = Scalar(db, tx, "SELECT json FROM positions WHERE subject=$p0 AND node=$p1", subjectId.ToString(), nodeKey) is string json
             ? Read<ReadingPosition>(json) : null;
         var result = Result<LessonReader>.Success(new(new(subjectId, nodeKey, lesson.Hash), lesson.PlanHash, lesson.Content.Blocks,
-            questions, lesson.Sources, node.Type == "theory", Completion(db, tx, subjectId, nodeKey), position));
+            questions, lesson.Sources, node.Type is "theory" or "quiz", Completion(db, tx, subjectId, nodeKey), position, node.Type));
         ct.ThrowIfCancellationRequested(); tx.Commit(); return result;
         }
         catch (Exception e) when (e is SqliteException or JsonException or InvalidDataException)
         {
             return Result<LessonReader>.Fail(ErrorCode.IO_FAILURE, "无法读取或保存选项排列，请检查学习库或恢复备份后重试。");
         }
+    }
+
+    private static LearningAttempt? WrittenAttempt(SqliteConnection db, SqliteTransaction tx, LessonIdentity identity, string question)
+    {
+        using var cmd = Command(db, tx, "SELECT json FROM attempts WHERE subject=$p0 AND node=$p1 ORDER BY rowid DESC", identity.SubjectId.ToString(), identity.NodeKey);
+        using var rows = cmd.ExecuteReader();
+        while (rows.Read()) { var item = Read<LearningAttempt>(rows.GetString(0)); if (item.QuestionId == question && item.LessonHash == identity.LessonHash) return item; }
+        return null;
+    }
+    private ReaderQuestion ProjectStored(SqliteConnection db, SqliteTransaction tx, LessonIdentity identity, LessonQuestion question, bool mastered)
+    {
+        var view = QuizProjection.Project(question, OptionOrder(db, tx, identity, question), mastered);
+        if (question.Kind != "written") return view;
+        var attempt = WrittenAttempt(db, tx, identity, question.Id);
+        return view with { ResponseText = attempt?.ResponseText, Answer = attempt is null ? null : new("", (question.ReferenceAnswer ?? "") + "\n" + question.Explanation) };
     }
 
     public Task<Result<AnswerResult>> SubmitAnswerAsync(Command<SubmitAnswer> command, CancellationToken ct = default)
@@ -237,13 +252,19 @@ public sealed partial class SqliteLearningStore : ILearningStore, ITheoryPublish
             var lesson = Lesson(db, tx, identity.SubjectId, identity.NodeKey);
             if (lesson is null || lesson.Hash != identity.LessonHash) return Bad<AnswerResult>();
             var question = lesson.Content.Questions.SingleOrDefault(q => q.Id == input.QuestionId);
-            if (question is null || !question.Options.Any(o => o.Id == input.OptionId)) return Bad<AnswerResult>();
+            if (question is null) return Bad<AnswerResult>();
+            var written = question.Kind == "written";
+            var previous = written ? WrittenAttempt(db, tx, identity, question.Id) : null;
+            if (written ? input.OptionId is not ("reveal" or "self-correct" or "self-review") ||
+                (input.OptionId != "reveal" && previous is null) || (input.ResponseText?.Length ?? 0) > 16000 ||
+                input.OptionId == "reveal" && string.IsNullOrWhiteSpace(input.ResponseText)
+                : !question.Options.Any(o => o.Id == input.OptionId)) return Bad<AnswerResult>();
             QuizOptionOrder order;
             try { order = OptionOrder(db, tx, identity, question); }
             catch (Exception e) when (e is SqliteException or JsonException or InvalidDataException)
             { return Bad<AnswerResult>("选项排列不可用，请检查学习库或恢复备份后重试。"); }
-            var correct = question.CorrectOptionId == input.OptionId;
-            var attempt = new LearningAttempt(Guid.NewGuid(), input.QuestionId, input.OptionId, correct, DateTimeOffset.UtcNow, identity.LessonHash);
+            var correct = written ? input.OptionId == "self-correct" : question.CorrectOptionId == input.OptionId;
+            var attempt = new LearningAttempt(Guid.NewGuid(), input.QuestionId, input.OptionId, correct, DateTimeOffset.UtcNow, identity.LessonHash, written ? input.OptionId == "reveal" ? "written-response" : "self-assessed" : null, written ? input.ResponseText ?? previous?.ResponseText : null);
             Execute(db, tx, "INSERT INTO attempts VALUES($p0,$p1,$p2,$p3)", attempt.Id.ToString(), identity.SubjectId.ToString(), identity.NodeKey, Json(attempt));
             if (correct) Execute(db, tx, "INSERT OR IGNORE INTO mastery VALUES($p0,$p1,$p2)", identity.SubjectId.ToString(), identity.NodeKey, input.QuestionId);
             var mastered = Mastered(db, tx, identity.SubjectId, identity.NodeKey, input.QuestionId);
@@ -252,10 +273,10 @@ public sealed partial class SqliteLearningStore : ILearningStore, ITheoryPublish
             {
                 Execute(db, tx, "INSERT INTO completions VALUES($p0,$p1,$p2)", identity.SubjectId.ToString(), identity.NodeKey, attempt.At.ToString("O"));
                 var revision = 1 + Convert.ToInt64(Scalar(db, tx, "SELECT COUNT(*) FROM attempts WHERE subject=$p0 AND node=$p1", identity.SubjectId.ToString(), identity.NodeKey));
-                AddEvent(db, tx, identity.SubjectId, identity.NodeKey, "NodeCompleted", lesson.Hash, revision);
+                AddEvent(db, tx, identity.SubjectId, identity.NodeKey, lesson.Content.Questions.Any(q => q.Kind == "written") ? "NodeSelfAssessed" : "NodeCompleted", lesson.Hash, revision);
             }
             return Result<AnswerResult>.Success(new(attempt.Id, correct, mastered,
-                Completion(db, tx, identity.SubjectId, identity.NodeKey) is not null, QuizProjection.Project(question, order, mastered).Answer));
+                Completion(db, tx, identity.SubjectId, identity.NodeKey) is not null, ProjectStored(db, tx, identity, question, mastered).Answer, written ? "written" : null));
         }, ct);
     }
 

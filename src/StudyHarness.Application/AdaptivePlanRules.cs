@@ -13,7 +13,7 @@ public static class AdaptivePlanRules
         if (!StrategyRules.Valid(plan.Strategy)) Add("PSTR001", "strategy", "策略字段或模式与能力组合不合法");
         if (plan.Strategy is { } strategy)
         {
-            if (!plan.Nodes.Select(n => n.Type == "theory" ? "theory" : n.Lab?.Kind).ToHashSet().SetEquals(strategy.TeachingModes))
+            if (!plan.Nodes.Select(n => n.Type is "theory" or "quiz" ? n.Type : n.Lab?.Kind).ToHashSet().SetEquals(strategy.TeachingModes))
                 Add("PSTR002", "strategy.teachingModes", "必须等于实际节点的教学模式集合");
             if (!plan.Nodes.Where(n => n.Type == "lab").Select(n => n.Lab?.Toolchain).ToHashSet().SetEquals(strategy.MaterialCapabilities))
                 Add("PSTR003", "strategy.materialCapabilities", "必须等于实际实践节点的能力集合");

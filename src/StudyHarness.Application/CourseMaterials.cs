@@ -4,16 +4,55 @@ namespace StudyHarness.Application;
 
 public static class CourseMaterials
 {
+    public const int MaximumContextReferences = 1024;
+    public const int MaximumLessonCharacters = 200000;
     public const string OcrGuidance = "OCR是资料获取方式，不代表整页不可用。识别清楚且上下文一致的文字、公式、表格、图中标签、数字、位置与连线关系，正常用于讲解、例子和测验。仅限制实际标为[无法辨认]、[图示需人工复核]、缺失、矛盾或无法确定的局部内容：不得猜补，不得据该不确定部分确定答案或干扰项解释；同页其他清楚内容仍可使用。来源状态由宿主资料信息区展示，课文和测验中不输出[OCR未复核]、OCR待复核或整页不可用的泛化声明。确有必要时只说明影响本课的具体资料缺口。";
     public static string WithQuality(IReadOnlyList<PlanCollection>? collections, PlanSource source, string body)
     {
         body = SourceText.ForModel(source.Reference.Locator.SourceLabel, body);
+        if (collections?.Any(c => ExamReference.IsExam(c) && c.References.Contains(source.Reference)) == true)
+            body = $"[来源定位：{source.Reference.Locator.SourceLabel}；物理页={source.Reference.Locator.Page}；块={source.Reference.Locator.Block}]\n" +
+                "[宿主资料用途：考题参照；转录不是已核对的原图，分析推断不等于官方答案]\n" + body;
         var pendingOcr = collections?.Any(c => c.LibraryId == source.Reference.LibraryId && c.References.Contains(source.Reference) &&
             c.Manifest.Entries.Any(e => e.State == "ocrReady" && source.Reference.Locator.Block.StartsWith(e.Key + ":", StringComparison.Ordinal))) == true;
         return pendingOcr ? "[宿主来源类型：OCR]\n" + OcrGuidance + "\n" + body : body;
     }
     public static async Task<IReadOnlyList<PlanSource>> SelectAsync(IKnowledgeStore knowledge, PlanDocument plan, PlannedNode node, CancellationToken ct)
     {
+        if (node.Type == "quiz" && plan.Collections?.Any(ExamReference.IsExam) == true)
+            return plan.Collections.Where(ExamReference.IsExam).SelectMany(c => c.References).Distinct()
+                .Select(r => new PlanSource("c" + r.VersionId.ToString("N"), r, false)).ToArray();
+        if (plan.Candidate.KnowledgeCoverage?.Any(m => m.State == "included" && m.NodeKeys.Contains(node.Key)) == true)
+        {
+            var units = BookKnowledge.LessonUnits(plan, node);
+            if (units.Count == 0) throw new IOException("本课缺少知识单元，请重新规划；未用关键词样本替代。");
+            var completeList = BookKnowledge.LessonSources(plan, node)
+                .Select(s => new PlanSource("c" + s.Reference.VersionId.ToString("N"), s.Reference, false)).ToList();
+            if (knowledge is IBoundedCollectionKnowledge siteKnowledge)
+            {
+                var siteBudget = new SourceAcquisitionBudget();
+                foreach (var (collection, index) in (plan.Collections ?? []).Select((c, i) => (c, i)).Where(x => x.c.SourceKind == "site"))
+                {
+                    var entries = Entries(plan, node, collection, index).Where(key =>
+                        !(collection.KnowledgeUnits ?? []).SelectMany(WebKnowledge.TeachingReferences)
+                            .Any(r => r.Locator.Block.StartsWith(key + ":", StringComparison.Ordinal))).ToArray();
+                    if (entries.Length == 0) continue;
+                    var fragments = await siteKnowledge.RetrieveFrozenAsync(collection, node.Title + " " + string.Join(' ', node.Objectives), entries, 100000, siteBudget, ct);
+                    completeList.AddRange(fragments.Select(f => new PlanSource("c" + f.Reference.VersionId.ToString("N"), f.Reference, false)));
+                }
+            }
+            var complete = completeList.DistinctBy(s => s.Reference).ToArray();
+            var length = 0;
+            foreach (var source in complete)
+            {
+                var body = (await knowledge.ResolveAsync(source.Reference, ct)).Text;
+                if (body is null) throw new IOException("本课完整上下文不可访问。");
+                length += body.Length;
+            }
+            if (length > MaximumLessonCharacters || complete.Length > MaximumContextReferences)
+                throw new SourcePreparationException("本课知识单元及必要前置超过上下文预算，请拆分课程；未删减上下文。");
+            return complete;
+        }
         async Task<IReadOnlyList<PlanSource>> SelectPlain(IReadOnlyList<PlanSource> available)
         {
             if (node.Lab is not null) return available.Where(s => node.Lab.SourceKeys.Contains(s.Key)).ToArray();
@@ -54,6 +93,9 @@ public static class CourseMaterials
         result.AddRange(await SelectPlain(plain));
         return result.Distinct().ToArray();
     }
+    public static IReadOnlyList<ModelSource> PackContext(IReadOnlyList<ModelSource> sources) => sources.Count <= 98 ? sources :
+        sources.Chunk(40).Select((group, i) => new ModelSource("context-bundle-" + (i + 1), 0, ModelSourceKind.OriginalMaterial,
+            "以下为完整原文块，引用使用各块内部[资料id]，不是外层分组名。\n" + string.Join("\n\n", group.Select(s => s.Text)))).ToArray();
     public static bool MissingBinding(PlanDocument plan, PlannedNode node) =>
         plan.Collections is { Count: > 0 } && !plan.Candidate.Coverage!.Any(e => e.State == "included" && e.NodeKeys.Contains(node.Key));
     public static string? MissingBindingError(PlanDocument plan)
@@ -79,9 +121,10 @@ public static class CourseMaterials
         }).Distinct().Take(8).ToArray();
     }
     public static bool Allowed(PlanDocument plan, PlannedNode node, PlanSource source) =>
+        BookKnowledge.LessonSources(plan, node).Any(s => s.Reference == source.Reference) ||
         plan.Sources.Contains(source) && (node.Lab is null || node.Lab.SourceKeys.Contains(source.Key)) ||
         plan.Collections?.Select((c, i) => (c, i)).Any(pair => (pair.c.References.Contains(source.Reference) || DynamicSiteReference(pair.c, source.Reference)) &&
-            Entries(plan, node, pair.c, pair.i).Any(entry => source.Reference.Locator.Block.StartsWith(entry + ":", StringComparison.Ordinal) || Related(pair.c, source.Reference, entry))) == true;
+            Entries(plan, node, pair.c, pair.i).Any(entry => WebKnowledge.MatchesEntry(source.Reference, entry) || Related(pair.c, source.Reference, entry))) == true;
     private static bool Related(PlanCollection collection, SourceRef reference, string entry)
     {
         if (collection.Structure is not { } index) return false;

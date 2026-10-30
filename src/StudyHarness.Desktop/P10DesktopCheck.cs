@@ -132,6 +132,33 @@ internal static class P10DesktopCheck
             Check(await Js("""
                 (()=>{const e=document.createElement('div');math('\\href{javascript:alert(1)}{bad}',e);return !e.querySelector('a');})()
                 """), "katex-untrusted-link-rejected");
+            Check(await Js("""
+                (()=>{const e=document.createElement('div');e.id='chinese-math';mathBlock('[X_T]_{补}=2^n+X_T \\pmod{2^n},\\quad -2^{n-1}\\le X_T<2^{n-1}',e);document.getElementById('content').append(e);return !!e.querySelector('.katex')&&e.textContent.includes('补');})()
+                """), "chinese-subscript-math-rendered");
+            Check(await Js("""
+                (()=>{const e=paragraph('选择 Y 或 \\overline{Y}，再计算 \\frac{1}{2}。');return e.querySelectorAll('.katex').length===2&&e.textContent.includes('选择 Y 或');})()
+                """), "unmarked-explicit-tex-in-prose");
+            Check(await Js("""
+                (()=>{const e=paragraph('`\\overline{Y}` 与裸 x_1\n```cpp\n\\frac{1}{2}\n```');return !e.querySelector('.katex')&&e.querySelector('code').textContent==='\\overline{Y}'&&e.querySelector('pre').textContent==='\\frac{1}{2}';})()
+                """), "unmarked-tex-preserves-code-and-identifiers");
+            Check(await Js("""
+                (()=>{const e=paragraph('1.5=1.1_2×2^0，0.25=1.0_2×2^{-2}。0.01_2+1.1_2=1.11_2；01111111_2，1100…0_2。');e.id='numeric-math';document.getElementById('content').append(e);return e.querySelectorAll('.katex').length===9&&[...e.querySelectorAll('.inline-math')].every(s=>getComputedStyle(s).display==='inline'&&getComputedStyle(s).overflowX==='visible');})()
+                """), "unmarked-numeric-scripts");
+            Check(await Js("""
+                (()=>{const e=paragraph('[E_b]移=[E_x]移+[-[E_y]移]补+127 (mod 2^8)。');document.getElementById('numeric-math').append(e);return e.querySelectorAll('.katex').length===4&&e.textContent.includes('移')&&e.textContent.includes('补');})()
+                """), "unmarked-bracketed-exponents");
+            Check(await Js("""
+                (()=>{const s='file_2.txt x_1 C:\\data\\2^8 /tmp/1.1_2.txt `1.1_2×2^0`';const e=paragraph(s);return !e.querySelector('.katex')&&e.textContent.includes('file_2.txt')&&e.querySelector('code').textContent==='1.1_2×2^0';})()
+                """), "numeric-recovery-keeps-paths-identifiers-code");
+            Check(await Js("""
+                (()=>{const e=paragraph('索引位数=\\log_2(行数)；组相联索引位数=\\log_{2}(组数)；块内地址位数=\\log_2(块大小)。另有 \\ln(x+1)、\\log_2((x+1)/2)。');e.id='log-math';document.getElementById('content').append(e);return e.querySelectorAll('.katex').length===5&&e.textContent.includes('行数')&&e.textContent.includes('块大小');})()
+                """), "unmarked-logarithms-with-chinese-arguments");
+            Check(await Js("""
+                (()=>{const e=paragraph('`\\log_2(行数)` 与 \\unknown_2(x) 和 C:\\log_2(file)');return !e.querySelector('.katex')&&e.querySelector('code').textContent==='\\log_2(行数)'&&e.textContent.includes('\\unknown_2(x)');})()
+                """), "function-recovery-preserves-code-paths-unknown-commands");
+            await Capture("log-math", "log-math");
+            await Capture("numeric-math", "numeric-math");
+            await Capture("chinese-math", "chinese-math");
             await Capture("code", "code"); await Capture("math", "steps");
             var reuseReport = await window.Browser.ExecuteScriptAsync("""
                 (()=>{

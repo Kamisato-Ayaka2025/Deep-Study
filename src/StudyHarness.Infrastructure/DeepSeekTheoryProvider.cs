@@ -16,14 +16,15 @@ public sealed class DeepSeekTheoryProvider(ICredentialReader credentials, HttpCl
     public async Task<Result<ProviderReply>> SendAsync(ApprovedModelRequest request, CancellationToken ct)
     {
         if (request.Destination != Destination || !request.JsonOutput || request.ReadableSources.Count != 0 ||
-            request.Sources.FirstOrDefault()?.Id is not ("theory-v1" or "theory-v2" or "theory-v3" or "theory-v3-short" or "theory-v4" or "theory-v4-short"))
+            request.Sources.FirstOrDefault()?.Id is not ("quiz-v1" or "theory-v1" or "theory-v2" or "theory-v3" or "theory-v3-context" or "theory-v3-short" or "theory-v4" or "theory-v4-short"))
             return Result<ProviderReply>.Fail(ErrorCode.CONSENT_DENIED, "结构化理论请求范围不匹配。");
         try
         {
             var key = await credentials.ReadKeyAsync(ct);
             if (string.IsNullOrWhiteSpace(key)) return Result<ProviderReply>.Fail(ErrorCode.AUTH_INVALID, "请在设置中保存有效API密钥。");
-            using var schemaStream = typeof(DeepSeekTheoryProvider).Assembly.GetManifestResourceStream(request.Sources[0].Id is "theory-v4" or "theory-v4-short" ? "theory-lesson-v4.schema.json" : request.Sources[0].Id is "theory-v3" or "theory-v3-short" ? "theory-lesson-v3.schema.json" : request.Sources[0].Id == "theory-v2" ? "theory-lesson-v2.schema.json" : "theory-lesson.schema.json")!;
+            using var schemaStream = typeof(DeepSeekTheoryProvider).Assembly.GetManifestResourceStream(request.Sources[0].Id == "quiz-v1" ? "quiz-lesson-v5.schema.json" : request.Sources[0].Id is "theory-v4" or "theory-v4-short" ? "theory-lesson-v4.schema.json" : request.Sources[0].Id is "theory-v3" or "theory-v3-context" or "theory-v3-short" ? "theory-lesson-v3.schema.json" : request.Sources[0].Id == "theory-v2" ? "theory-lesson-v2.schema.json" : "theory-lesson.schema.json")!;
             var schema = (await JsonNode.ParseAsync(schemaStream, cancellationToken: ct))!.AsObject();
+            schema["properties"]!.AsObject().Remove("contextChecks");
             // Strict structured output requires every property to be required;
             // nullable block fields retain their local conditional validation.
             schema.Remove("$schema"); schema.Remove("title");
@@ -36,14 +37,14 @@ public sealed class DeepSeekTheoryProvider(ICredentialReader credentials, HttpCl
             message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
             var serialized = JsonSerializer.Serialize(new
             {
-                model = request.Model, stream = false, temperature = 0, reasoning = new { effort = request.Sources[0].Id is "theory-v2" or "theory-v3" or "theory-v4" ? "high" : "none" },
+                model = request.Model, stream = false, temperature = 0, reasoning = new { effort = request.Sources[0].Id is "quiz-v1" or "theory-v2" or "theory-v3" or "theory-v3-context" or "theory-v4" ? "high" : "none" },
                 max_output_tokens = request.MaxOutputTokens,
                 input = request.Sources.Select(s => new { role = "user", content = s.Text }),
                 text = new { format = new { type = "json_schema", name = "theory_lesson", strict = true, schema } }
                         }, new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
             if (request.Capabilities is { } capability)
             {
-                var admission = AdaptiveBudgetPolicy.Create(capability, request.Model, serialized, false, DateTimeOffset.UtcNow, request.Sources[0].Id is "theory-v2" or "theory-v3" or "theory-v4");
+                var admission = AdaptiveBudgetPolicy.Create(capability, request.Model, serialized, false, DateTimeOffset.UtcNow, request.Sources[0].Id is "quiz-v1" or "theory-v2" or "theory-v3" or "theory-v3-context" or "theory-v4", request.Sources[0].Id == "theory-v3-context", request.Sources[0].Id is "practice-v5" or "lab-cpp-v4" or "lab-v3");
                 if (request.MaxOutputTokens > admission.OutputReserve) throw new ArgumentException("Output capability expired or reduced.");
             }
             message.Content = new StringContent(serialized, Encoding.UTF8, "application/json");

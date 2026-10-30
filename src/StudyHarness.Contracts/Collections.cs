@@ -7,4 +7,7 @@ public sealed record CollectionSummary(string EntryKey, IReadOnlyList<string> Pa
 public sealed record CollectionSnapshot(SourceCollection Collection, CoverageManifest Manifest, IReadOnlyList<SourceRef> References,
     IReadOnlyList<CollectionSummary>? Summaries = null, StructureIndex? Structure = null);
 public sealed record PlanCollection(Guid LibraryId, CoverageManifest Manifest, IReadOnlyList<SourceRef> References,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] StructureIndex? Structure = null);
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] StructureIndex? Structure = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BookKnowledgeUnit>? KnowledgeUnits = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? SourceKind = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? Purpose = null);

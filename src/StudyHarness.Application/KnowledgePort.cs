@@ -5,11 +5,13 @@ namespace StudyHarness.Application;
 // from model responses, and are not accepted as remote tool arguments.
 public sealed class HostSelection
 {
-    private HostSelection(string path, bool directory, bool project = false, bool plan = false) => (Path, IsDirectory, IsProject, IsPlanImport) = (System.IO.Path.GetFullPath(path), directory, project, plan);
+    private HostSelection(string path, bool directory, bool project = false, bool plan = false, bool exam = false) => (Path, IsDirectory, IsProject, IsPlanImport, IsExamImport) = (System.IO.Path.GetFullPath(path), directory, project, plan, exam);
     public string Path { get; }
     public bool IsDirectory { get; }
     public bool IsProject { get; }
     public bool IsPlanImport { get; }
+    public bool IsExamImport { get; }
+    public static HostSelection FromExamFilePicker(string path) => new(path, false, true, true, true);
     public static HostSelection FromPlanFilePicker(string path) => new(path, false, true, true);
     public static HostSelection FromPlanFolderPicker(string path) => new(path, true, true, true);
     public static HostSelection FromProjectPicker(string path) => new(path, true, true);

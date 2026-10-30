@@ -10,6 +10,22 @@ namespace StudyHarness.Tests.Integration;
 
 public sealed class DeepSeekTheoryTests
 {
+    [Fact]
+    public async Task QuizRequest_UsesMixedQuestionSchemaWithoutRequiringTeachingBlocks()
+    {
+        var handler = new Handler(Response()); using var client = new HttpClient(handler);
+        var egress = new ModelEgress(new DeepSeekTheoryProvider(new Key(), client));
+        var review = egress.Prepare("deepseek-flash", [new("quiz-v1", 5, ModelSourceKind.UserText, QuizLesson.Prompt)], 512, true);
+        Assert.True((await egress.SendAsync(review, egress.Approve(review, ConsentMode.Each))).Ok);
+        using var body = JsonDocument.Parse(handler.Body);
+        var props = body.RootElement.GetProperty("text").GetProperty("format").GetProperty("schema").GetProperty("properties");
+        Assert.Equal(5, props.GetProperty("schemaVersion").GetProperty("const").GetInt32());
+        Assert.Equal(0, props.GetProperty("blocks").GetProperty("minItems").GetInt32());
+        var question = props.GetProperty("questions").GetProperty("items").GetProperty("properties");
+        Assert.Equal(0, question.GetProperty("options").GetProperty("minItems").GetInt32());
+        Assert.True(question.TryGetProperty("referenceAnswer", out _));
+        Assert.False(body.RootElement.TryGetProperty("tools", out _));
+    }
     [Theory]
     [InlineData("theory-v4", "high")]
     [InlineData("theory-v4-short", "none")]

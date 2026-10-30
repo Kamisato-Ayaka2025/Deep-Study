@@ -26,7 +26,7 @@ public sealed class LabService(IPlanningStore plans, ILearningStore learning, IL
             if (existing is not null) return Result<LabPackage>.Success(existing);
             var config = await settings.GetAsync(ct);
             var adaptive = draft.Plan!.Candidate.SchemaVersion == 2;
-            var materials = new List<ModelSource>(); var sources = new List<PlanSource>(); var budget = adaptive ? 131072 : 32000;
+            var materials = new List<ModelSource>(); var sources = new List<PlanSource>(); var budget = adaptive ? CourseMaterials.MaximumLessonCharacters : 32000;
             foreach (var source in await CourseMaterials.SelectAsync(knowledge, draft.Plan!, node, ct))
             {
                 if (!adaptive && budget == 0) break;
@@ -42,9 +42,9 @@ public sealed class LabService(IPlanningStore plans, ILearningStore learning, IL
                 await history.SaveSelectionAsync(subject, LessonSourceSelector.Describe(draft.Plan, node, sources, materials.Sum(m => m.Text.Length)), ct);
             var cpp = node.Lab.Toolchain == "portable-cpp";
             var general = node.Lab.Toolchain is "paper-exercise" or "manual-project";
-            var prompt = (general ? GeneralPracticePrompt.Text : cpp ? CppLabPrompt.Text : LabPrompt.Text) + "\n来源若相互矛盾且无法据原文消解，停止相关题目，不得编造一致答案。\n本课冻结定义：" + JsonSerializer.Serialize(node, Wire.Options) + "\n可引用资料id：" + string.Join(',', sources.Select(s => s.Key));
+            var prompt = ExamReference.LessonGuidance(draft.Plan, node) + ExamGraphConflicts.Describe(materials) + (general ? GeneralPracticePrompt.Text : cpp ? CppLabPrompt.Text : LabPrompt.Text) + "\n来源若相互矛盾且无法据原文消解，停止相关题目，不得编造一致答案。\n本课冻结定义：" + JsonSerializer.Serialize(node, Wire.Options) + "\n可引用资料id：" + string.Join(',', sources.Select(s => s.Key));
             if (cpp) prompt += "\n本课算法定义：" + JsonSerializer.Serialize(draft.Plan.Candidate.Algorithms?.Where(a => node.AlgorithmKeys!.Contains(a.Key)), Wire.Options);
-            var snapshot = new[] { new ModelSource(general ? "practice-v5" : cpp ? "lab-cpp-v4" : "lab-v3", general ? 5 : cpp ? 4 : 3, ModelSourceKind.UserText, prompt) }.Concat(materials);
+            var snapshot = new[] { new ModelSource(general ? "practice-v5" : cpp ? "lab-cpp-v4" : "lab-v3", general ? 5 : cpp ? 4 : 3, ModelSourceKind.UserText, prompt) }.Concat(CourseMaterials.PackContext(materials));
             var review = adaptive ? await egress.PrepareAdaptiveAsync(config.Model, snapshot, false, ct) : egress.Prepare(config.Model, snapshot, 8192, true);
             var begun = await store.BeginLabAsync(subject, key, ct);
             if (!begun.Ok) return new(false, null, begun.Error);

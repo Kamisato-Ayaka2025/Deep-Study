@@ -22,6 +22,11 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
     public IReadOnlyList<SourceRef> LocalReferences => localReferences;
     public string SavedOcrPages { get; private set; } = "";
     public Guid? SavedOcrCollectionId { get; private set; }
+    public IReadOnlyList<Guid> ExamCollectionIds { get; private set; } = [];
+    public void SetExamCollections(IReadOnlyList<Guid> ids)
+    {
+        ExamCollectionIds = ids.Distinct().ToArray(); referencesEdited = true; review = null; Preview = ""; AckFrozen = false; Persist(); RefreshFlags();
+    }
     public IReadOnlyList<Guid> PendingCollections { get; private set; } = [];
     public void SetPendingCollections(IReadOnlyList<Guid> ids)
     {
@@ -44,7 +49,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         try
         {
             sessionStore.Save(new(current?.Id, Request, Background, Goal, Hours, WebTopic, WebSite,
-                ClarificationAnswer, localReferences, webReferences, WebReport, SavedOcrPages, SavedOcrCollectionId, PendingCollections));
+                ClarificationAnswer, localReferences, webReferences, WebReport, SavedOcrPages, SavedOcrCollectionId, PendingCollections, ExamCollectionIds));
             recoveryFailed = false; RecoveryStatus = "已自动保存";
         }
         catch (Exception) { recoveryFailed = true; RecoveryStatus = "自动保存失败，请保留当前窗口并检查数据目录。"; }
@@ -69,6 +74,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
                 clarificationAnswer = saved.Clarification; localReferences = saved.References;
                 SavedOcrPages = saved.OcrPages; SavedOcrCollectionId = saved.OcrCollectionId;
                 PendingCollections = saved.PendingCollections ?? [];
+                ExamCollectionIds = saved.ExamCollectionIds ?? draft?.Draft.Input.ExamCollectionIds ?? [];
                 webReferences = saved.WebReferences; webReport = saved.WebReport; referencesEdited = current is not null && !localReferences.SequenceEqual(current.Input.PreferredReferences);
                 review = null; Preview = ""; AckFrozen = false;
                 NotifyAll(); Notify(nameof(WebTopic)); Notify(nameof(WebSite)); Notify(nameof(WebReport)); Notify(nameof(ClarificationAnswer));
@@ -216,7 +222,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         current = null; selected = null; request = background = goal = minutes = hours = ""; scope = "Adaptive";
         clarificationAnswer = ""; Notify(nameof(ClarificationAnswer));
         localReferences = []; referencesEdited = false; ResetWeb(); webSite = ""; Notify(nameof(WebSite));
-        SavedOcrPages = ""; SavedOcrCollectionId = null; PendingCollections = [];
+        SavedOcrPages = ""; SavedOcrCollectionId = null; PendingCollections = []; ExamCollectionIds = [];
         review = null; Preview = ""; Summary = "尚无候选计划。"; Nodes.Clear(); AckFrozen = false;
         Status = "输入新的学习目标；资料只用于当前计划。";
         NotifyAll(); Persist();
@@ -254,7 +260,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
             weekly = value;
         }
         var input = new PlanningInput(Request.Trim(), string.IsNullOrWhiteSpace(Background) ? null : Background,
-            string.IsNullOrWhiteSpace(Goal) ? null : Goal, weekly, Scope, references.Concat(webReferences).Distinct().ToArray());
+            string.IsNullOrWhiteSpace(Goal) ? null : Goal, weekly, Scope, references.Concat(webReferences).Distinct().ToArray(), ExamCollectionIds.Count == 0 ? null : ExamCollectionIds.ToArray());
         // Restored drafts keep their versioned sources unless the user explicitly selects replacements.
         if (sessionStore is null && !referencesEdited && input.PreferredReferences.Count == 0 && current is not null &&
             input.Request == current.Input.Request && input.Goal == current.Input.Goal)
@@ -272,13 +278,26 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         var draft = current;
         var result = await Task.Run(() => service.PrepareAsync(draft.Id, draft.Revision, ct), ct);
         if (!result.Ok) { Show(result.Error!); return; }
-        review = result.Value!; var r = review.Review;
-        Preview = $"发送至：{r.Destination}\n模型：{r.Model}\n计划模式：JSON输出，temperature=0，关闭思考模式以保留完整计划的输出预算\n最大输出：{r.MaxOutputTokens} tokens（实际用量以服务返回为准）\n" +
-            $"共{r.Sources.Count}项 / UTF-8 {r.Sources.Sum(s => Encoding.UTF8.GetByteCount(s.Text))}字节\n\n" + string.Join("\n\n", r.Sources.Select(s => $"[{s.Id} / {s.Kind}]\n{s.Text}"));
-        if (r.Budget is { } budget) Preview += $"\n\n本次宿主已装配固定目录和原文；最多{budget.MaxDispatches}次派发（临时错误与内容修复共用）；不合规时会向同一模型发送上次候选及具体校验错误，修复后仍须完整校验。目标{budget.TargetSeconds}秒，可随时取消。" +
-            (r.Capabilities?.Verified == true ? "" : "\n模型能力待刷新，已采用保守预算。 ");
-        else Preview += "\n\n按需读取范围：以下正文不会全部随首个请求发送，仅在模型调用时返回；最多8轮、12次工具调用、65536字符工具结果，总输出8192 tokens。目录是导入时的固定版本；重新导入/换范围需重新保存并预览。\n" +
-            string.Join("\n\n", r.ReadableSources.Select(s => $"[{s.Id}] {s.Label}\n{s.Text}"));
+        var prepared = result.Value!;
+        var text = await Task.Run(() =>
+        {
+            var r = prepared.Review;
+            var preview = $"发送至：{r.Destination}\n模型：{r.Model}\n计划模式：JSON输出，temperature=0，关闭思考模式以保留完整计划的输出预算\n最大输出：{r.MaxOutputTokens} tokens（实际用量以服务返回为准）\n" +
+                $"共{r.Sources.Count}项 / UTF-8 {r.Sources.Sum(s => Encoding.UTF8.GetByteCount(s.Text))}字节\n\n" + string.Join("\n\n", r.Sources.Select(s => $"[{s.Id} / {s.Kind}]\n{s.Text}"));
+            if (r.Budget is { } budget) preview += $"\n\n本次宿主已装配固定目录和原文；最多{budget.MaxDispatches}次派发（临时错误与内容修复共用）；不合规时会向同一模型发送上次候选及具体校验错误，修复后仍须完整校验。目标{budget.TargetSeconds}秒，可随时取消。" +
+                (r.Capabilities?.Verified == true ? "" : "\n模型能力待刷新，已采用保守预算。 ");
+            else preview += "\n\n按需读取范围：以下正文不会全部随首个请求发送，仅在模型调用时返回；最多8轮、12次工具调用、65536字符工具结果，总输出8192 tokens。目录是导入时的固定版本；重新导入/换范围需重新保存并预览。\n" +
+                string.Join("\n\n", r.ReadableSources.Select(s => $"[{s.Id}] {s.Label}\n{s.Text}"));
+
+            if (prepared.KnowledgeBatches.Count > 0)
+            {
+                preview += $"\n\n资料知识梳理：{prepared.KnowledgeBatches.Count}批。本地教材漏标原文保留供后续理解；网页广告/非教学内容排除，未分类段落不自动作为教学知识，缓存状态保留未完成；不为编号遗漏重发。格式或引用无效时最多一次修复，收到的回复与已完成批次均保留复用；失败/取消后重新预览可续做。首次读取以下全部已取得正文，随后按全部知识标题编排课程，再每40个知识点发送完整说明和课程结构逐项分配（每批最多一次修复）。总费用包含梳理、编排及分配；成功结果缓存复用。知识清单为模型提取，需人工核对遗漏。\n" +
+                    string.Join("\n\n", prepared.KnowledgeBatches.Select(b => $"批次 {b.Key} / 最大输出{b.Review.MaxOutputTokens} tokens\n" + string.Join("\n", b.Review.Sources.Select(s => s.Text))));
+            }
+            return preview;
+        }, ct);
+        ct.ThrowIfCancellationRequested();
+        review = prepared; Preview = text;
         Status = "核对完整外发范围后同意或拒绝；此次只拟定计划，不生成正文。"; RefreshFlags();
     });
     public Task ProposeAsync(bool allow) => Run(async ct =>
@@ -289,8 +308,10 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         var delayed = DelayNotice(notice.Token);
         Result<PlanningDraft> result;
         var prepared = review;
+        void OnProgress(string message) => Status = message;
+        service.Progress += OnProgress;
         try { result = await Task.Run(() => service.ProposeAsync(prepared, allow, ct), ct); }
-        finally { notice.Cancel(); await delayed; }
+        finally { service.Progress -= OnProgress; notice.Cancel(); await delayed; }
         if (!result.Ok)
         {
             if (result.Error!.Code != ErrorCode.INVALID_MODEL_OUTPUT || !review.CanRetry) review = null;
@@ -348,6 +369,7 @@ public sealed class PlanningViewModel(PlanningService service, ILearningStore? l
         clarificationAnswer = ""; Notify(nameof(ClarificationAnswer));
         if (sessionStore is null && current?.Id != draft.Id) { ResetWeb(); webSite = ""; Notify(nameof(WebSite)); }
         webReferences = [];
+        ExamCollectionIds = draft.Input.ExamCollectionIds ?? [];
         current = draft; request = draft.Input.Request; background = draft.Input.Background ?? ""; goal = draft.Input.Goal ?? "";
         minutes = draft.Input.WeeklyMinutes?.ToString() ?? "";
         hours = draft.Input.WeeklyMinutes is > 0 and <= 10080 ? draft.Input.WeeklyMinutes.Value % 3 == 0 ? (draft.Input.WeeklyMinutes.Value / 60m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : StudyHarness.Domain.WeeklyStudyTime.Format(draft.Input.WeeklyMinutes.Value) : ""; scope = draft.Input.Scope; review = null; ackFrozen = false;

@@ -105,7 +105,8 @@
           "type": {
             "enum": [
               "theory",
-              "lab"
+              "lab",
+              "quiz"
             ]
           },
           "objectives": {

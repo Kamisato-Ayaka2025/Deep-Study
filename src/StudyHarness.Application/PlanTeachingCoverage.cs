@@ -9,6 +9,13 @@ public static class PlanTeachingCoverage
     {
         var plan = document.Candidate;
         var lines = new List<string>();
+        foreach (var unit in (document.Collections ?? []).SelectMany(c => c.KnowledgeUnits ?? []))
+        foreach (var point in unit.Points)
+        {
+            var mapping = plan.KnowledgeCoverage?.FirstOrDefault(m => m.KnowledgeKey == point.Key);
+            lines.Add($"知识 {point.Key} · {point.Title}：{point.Detail}；来源 {string.Join(',', unit.Sources.Where(s => point.EvidenceIds.Contains(s.Key)).Select(s => s.Reference.Locator.Page is { } page ? "页" + page : s.Reference.Locator.SourceLabel).Distinct())}；" +
+                (mapping?.State == "included" ? "课程 " + string.Join(',', mapping.NodeKeys) + "；前置知识 " + string.Join(',', mapping.ContextKeys ?? []) : "排除：" + mapping?.Reason));
+        }
         foreach (var (collection, index) in (document.Collections ?? []).Select((c, i) => (c, i)))
         {
             var prefix = $"d{index + 1}/";
@@ -21,7 +28,7 @@ public static class PlanTeachingCoverage
                 var nodes = plan.Nodes.Where(n => keys.Contains(n.Key)).ToArray();
                 var pages = group.Select(e => entries[e.EntryKey].Locator).Select(v => int.TryParse(v, out var p) ? (int?)p : null).ToArray();
                 var range = pages.All(p => p.HasValue) ? $"资料页{pages.Min()}–{pages.Max()}（{pages.Length}页）" : $"{group.Count()}个资料条目";
-                lines.Add($"资料{index + 1} · {range}：理论{nodes.Count(n => n.Type == "theory")}课、实践{nodes.Count(n => n.Type == "lab")}课；{string.Join("、", nodes.Select(n => n.Key + " " + n.Title))}");
+                lines.Add($"资料{index + 1} · {range}：理论{nodes.Count(n => n.Type == "theory")}课、实验{nodes.Count(n => n.Type == "lab")}课、测验{nodes.Count(n => n.Type == "quiz")}课；{string.Join("、", nodes.Select(n => n.Key + " " + n.Title))}");
             }
         }
         return $"共{plan.Nodes.Count}课，预计{plan.Nodes.Sum(n => n.EstimatedMinutes)}分钟、{document.Weeks.Count}周。每周时间只安排学习节奏，不限制总课数。\n" +

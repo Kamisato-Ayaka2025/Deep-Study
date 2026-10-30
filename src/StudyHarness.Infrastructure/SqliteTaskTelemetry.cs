@@ -2,8 +2,13 @@ using StudyHarness.Application;
 
 namespace StudyHarness.Infrastructure;
 
-public sealed partial class SqliteLearningStore : ITaskTelemetry
+public sealed partial class SqliteLearningStore : ITaskTelemetry, IContextDiagnostics
 {
+    public Task<string?> ContextGapAsync(Guid taskId, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested(); using var db = Open();
+        return Task.FromResult(Scalar(db, null, "SELECT outcome FROM generation_timings WHERE task_id=$p0 AND phase='context-check' ORDER BY attempt DESC LIMIT 1", taskId.ToString()) as string);
+    }
     public Task SaveBudgetAsync(TaskBudgetRecord record, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested(); using var db = Open(); using var tx = db.BeginTransaction();

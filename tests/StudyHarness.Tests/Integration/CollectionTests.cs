@@ -65,6 +65,23 @@ public sealed class CollectionTests : IDisposable
         await Assert.ThrowsAsync<InvalidDataException>(() => store.RetrieveFrozenAsync(binding, "", ["section-1", "section-2", "section-3"], 100));
     }
     [Fact]
+    public async Task PdfAboveOldPageLimit_ImportsAllPagesAndReusesCache()
+    {
+        var (store, library) = await Setup(); var path = Path.Combine(root, "long.pdf");
+        var builder = new PdfDocumentBuilder();
+        for (var i = 0; i < 2001; i++) builder.AddPage(100, 100);
+        await File.WriteAllBytesAsync(path, builder.Build());
+        var first = await store.ImportAsync(new(Guid.NewGuid(), 0, HostSelection.FromPlanFilePicker(path)), library);
+        Assert.True(first.Ok); Assert.All(first.Value!.Files, f => Assert.True(f.Ok, f.Error));
+        var snapshot = Assert.Single(await store.CollectionsAsync(library));
+        Assert.Equal(2001, snapshot.Collection.EntryCount);
+        var repeated = await store.ImportCollectionAsync(HostSelection.FromFilePicker(path), library);
+        Assert.True(repeated.Ok); Assert.Equal(snapshot.Collection.Version, repeated.Value!.Collection.Version);
+        Assert.Equal(2001, repeated.Value.Manifest.Entries.Count);
+        var lastPage = Assert.Single(await store.RenderPagesAsync(library, snapshot.Collection.Id, [2001], default));
+        Assert.Equal(2001, lastPage.Page); Assert.NotEmpty(lastPage.Png);
+    }
+    [Fact]
     public async Task ScannedPages_AreExplicitlyUnreadyAndNeverCountedAsRead()
     {
         var (store, library) = await Setup(); var path = Path.Combine(root, "scan.pdf");

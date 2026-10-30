@@ -40,6 +40,9 @@ public sealed class GenerationTests : IDisposable
         Assert.True(review.Ok);
         var prompt = string.Join("\n", review.Value!.Reviews["A"].Sources.Select(s => s.Text));
         Assert.Contains(CourseMaterials.OcrGuidance, prompt);
+        Assert.Contains(LessonTeaching.Guidance, prompt);
+        Assert.Contains("本课教学任务", prompt);
+        Assert.Contains("资料用途", prompt);
         Assert.Contains("同页其他清楚内容仍可使用", prompt);
         Assert.DoesNotContain("开头简短声明", prompt);
         Assert.DoesNotContain("只使用连续正文支持的概念", prompt);
@@ -93,6 +96,22 @@ public sealed class GenerationTests : IDisposable
         Assert.Contains("未引用外部资料", reader.Value.Blocks[0].Text);
         Assert.Equal(draft.Plan!.Hash, (await Plans.GetAsync(draft.Id))!.Plan!.Hash);
         Assert.Equal(1, provider.Calls);
+    }
+    [Fact]
+    public async Task Hybrid_WithAvailableSources_CanPublishModelSupplementAndRestart()
+    {
+        var draft = await Seed();
+        var material = TheoryFixtureProvider.NewLesson("unused") with { SchemaVersion = 3, SourceKeys = [],
+            ContextChecks = [new("objective-1", false, [], [], "可用模型知识补充")] };
+        var provider = new Provider(_ => Task.FromResult(Result<ProviderReply>.Success(new(System.Text.Json.JsonSerializer.Serialize(material, Wire.Options), true))));
+        var service = Service(provider, false);
+        Assert.True((await service.GenerateAsync(draft.Id, "A")).Ok);
+        Assert.True(await service.TickAsync());
+        var reader = await new SqliteLearningStore(root, Plans).GetLessonAsync(draft.Id, "A");
+        Assert.True(reader.Ok, reader.Error?.Message);
+        Assert.Contains("未引用外部资料", reader.Value!.Blocks[0].Text);
+        Assert.Equal(1, provider.Calls);
+        Assert.Equal(draft.Plan!.Hash, (await Plans.GetAsync(draft.Id))!.Plan!.Hash);
     }
     [Fact]
     public async Task Hybrid_SourceLessPublication_CannotBypassUnknownScope()

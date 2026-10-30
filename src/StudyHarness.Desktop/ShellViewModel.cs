@@ -5,7 +5,7 @@ using StudyHarness.Application;
 using StudyHarness.Contracts;
 using StudyHarness.Infrastructure;
 namespace StudyHarness.Desktop;
-public sealed class ShellViewModel(SettingsService service, ModelEgress provider, SafeLog log, string? dataRoot = null, DataDirectorySettings? directories = null) : INotifyPropertyChanged
+public sealed class ShellViewModel(SettingsService service, ModelEgress provider, SafeLog log, string? dataRoot = null, DataDirectorySettings? directories = null, ICacheCatalog? cacheCatalog = null) : INotifyPropertyChanged
 {
     private string model = "deepseek-chat", status = "学习数据保存在本机。";
     private GenerationMode generationMode;
@@ -26,6 +26,40 @@ public sealed class ShellViewModel(SettingsService service, ModelEgress provider
         if (!hasPendingApiKey) return true;
         Status = "新密钥尚未保存，已保留输入。请先保存设置，或明确点击“放弃未保存输入并重新载入”，再切页或退出。";
         return false;
+    }
+    public System.Collections.ObjectModel.ObservableCollection<CachedMaterial> CachedMaterials { get; } = [];
+    private int cachePage = 1, cachePages = 1;
+    private bool cacheBusy;
+    private string cacheStatus = "展开后查看当前数据目录关联的资料缓存。";
+    public string CacheStatus => cacheStatus;
+    public string CachePageLabel => $"第 {cachePage} / {cachePages} 页";
+    public bool CanRefreshCache => !cacheBusy;
+    public bool CanPreviousCache => !cacheBusy && cachePage > 1;
+    public bool CanNextCache => !cacheBusy && cachePage < cachePages;
+    public async Task LoadCacheAsync(int direction = 0)
+    {
+        if (cacheBusy || cacheCatalog is null) return;
+        cacheBusy = true; cacheStatus = "正在读取缓存…"; NotifyCache();
+        try
+        {
+            var result = await cacheCatalog.ReadAsync(direction == 0 ? 1 : cachePage + direction);
+            CachedMaterials.Clear();
+            foreach (var item in result.Items) CachedMaterials.Add(item);
+            cachePage = result.Page; cachePages = result.Pages;
+            cacheStatus = (result.Total == 0 ? "尚无已缓存的资料。" : $"共 {result.Total} 份资料，每页 {CacheCatalogPage.PageSize} 份。")
+                + (result.Warning is null ? "" : " " + result.Warning);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            CachedMaterials.Clear(); cachePage = cachePages = 1;
+            cacheStatus = "缓存列表读取失败，请稍后刷新。";
+        }
+        finally { cacheBusy = false; NotifyCache(); }
+    }
+    private void NotifyCache()
+    {
+        Notify(nameof(CacheStatus)); Notify(nameof(CachePageLabel)); Notify(nameof(CanRefreshCache));
+        Notify(nameof(CanPreviousCache)); Notify(nameof(CanNextCache));
     }
     public string DataLocation => dataRoot is null ? "" : $"当前数据目录：{dataRoot}";
     public bool CanChangeDataDirectory => directories is not null && dataRoot is not null && !Busy;

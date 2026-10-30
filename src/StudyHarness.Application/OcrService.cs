@@ -27,7 +27,7 @@ public sealed class OcrService(IOcrKnowledge knowledge, SettingsService settings
     }
     public async Task<Result<OcrReview>> PrepareAsync(Guid library, Guid collection, IReadOnlyList<int> pages, CancellationToken ct = default)
     {
-        if (pages.Count is < 1 or > 20 || pages.Distinct().Count() != pages.Count || pages.Any(p => p is < 1 or > 2000))
+        if (pages.Count is < 1 or > 20 || pages.Distinct().Count() != pages.Count || pages.Any(p => p is < 1 or > 10000))
             return Result<OcrReview>.Fail(ErrorCode.VALIDATION_ERROR, "每批请选择1至20个不同的资料页序。");
         var config = await settings.GetAsync(ct); var capability = await capabilities.GetAsync(config.Model, ct);
         if (!AdaptiveBudgetPolicy.IsFresh(capability, config.Model, DateTimeOffset.UtcNow) || !capability.SupportsImages || capability.MaxOutputTokens < 8192)

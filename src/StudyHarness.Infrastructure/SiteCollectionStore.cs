@@ -52,6 +52,7 @@ internal sealed partial class CollectionStore
             throw new InvalidDataException("Unexpected site body");
         var assessment = page.Assessment ?? TeachingPages.Assess(page, entry.Heading);
         if (!assessment.UsableForTeaching) throw new InvalidDataException("Site page is not teaching body");
+        page = TeachingPages.Clean(page, entry.Heading);
         using var pin = SafeKnowledgeFiles.PinDirectory(root); using var filePin = SafeKnowledgeFiles.PinExistingFile(Database); using var db = Open();
         if (new FileInfo(Database).Length > 2L * 1024 * 1024 * 1024 - 128L * 1024 * 1024) throw new IOException("Collection cache budget");
         using var tx = db.BeginTransaction(); using var command = db.CreateCommand(); command.Transaction = tx;

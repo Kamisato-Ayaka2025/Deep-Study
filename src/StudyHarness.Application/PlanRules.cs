@@ -17,7 +17,7 @@ public static class PlanRules
 
     public static Guid NodeId(Guid subject, string key) => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{subject:N}/{key}"))[..16]);
     public static CourseGraph Graph(Guid subject, PlanCandidate plan) => CourseGraph.Create(plan.Nodes.Select((n, i) =>
-        new CourseDefinition(NodeId(subject, n.Key), i, n.Type == "theory" ? CourseKind.Theory : CourseKind.Lab,
+        new CourseDefinition(NodeId(subject, n.Key), i, n.Type == "quiz" ? CourseKind.Quiz : n.Type == "theory" ? CourseKind.Theory : CourseKind.Lab,
             n.Title, n.Objectives, n.EstimatedMinutes, n.PrerequisiteKeys.Select(k => NodeId(subject, k)).ToArray())));
 
     public static Result<PlanDocument> Validate(Guid subject, PlanningInput input, PlanCandidate plan,
@@ -25,9 +25,10 @@ public static class PlanRules
     {
         Result<PlanDocument> Bad(string message) => Result<PlanDocument>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, message);
         var adaptive = plan.SchemaVersion == 2;
+        if (BookKnowledge.Validate(plan, collections) is { } knowledgeError) return Bad(knowledgeError);
         if (plan.Nodes.Count > (adaptive ? 240 : 80))
             return Bad($"PVAL001：本次计划超过{(adaptive ? 240 : 80)}个节点的技术容量。请明确分阶段规划并保留后续范围，不得压缩后半部分的教学深度来凑上限。");
-        if (plan.SchemaVersion is not (1 or 2) || plan.Nodes.Count < 1 || plan.Nodes.Count > (adaptive ? 240 : 80) || plan.Nodes.Any(n => n.Type is not ("theory" or "lab") || n.EstimatedMinutes is < 1 or > 10080) ||
+        if (plan.SchemaVersion is not (1 or 2) || plan.Nodes.Count < 1 || plan.Nodes.Count > (adaptive ? 240 : 80) || plan.Nodes.Any(n => n.Type is not ("theory" or "lab" or "quiz") || n.EstimatedMinutes is < 1 or > 10080) ||
             plan.WeeklyMinutes is < 1 or > 10080 || (adaptive ? plan.Scope != "Adaptive" : plan.Scope is not ("Math" or "Concepts" or "SimpleC" or "CppAlgorithms" or "OutOfScope")))
             return Bad("PVAL001：计划类型、课程数量或每周时间无效。");
         if (adaptive && AdaptivePlanRules.Problems(plan) is { Count: > 0 } problems)
@@ -89,7 +90,7 @@ public static class PlanRules
             return Bad("PVAL013：范围外实践必须说明限制并澄清目标。");
         var labs = plan.Nodes.Where(n => n.Type == "lab").ToArray();
         var practical = adaptive ? plan.Strategy!.MaterialCapabilities.Count > 0 : plan.Scope is "SimpleC" or "CppAlgorithms";
-        if (practical && labs.Length == 0 || !practical && labs.Length != 0)
+        if (!practical && labs.Length != 0)
             return Bad("PVAL014：实验支持简单C及C++算法竞赛；纯数学和纯概念计划应为理论课。");
         var cpp = plan.Scope == "CppAlgorithms" || adaptive && plan.Strategy!.MaterialCapabilities.Contains("portable-cpp");
         if (cpp)
@@ -113,8 +114,8 @@ public static class PlanRules
             {
                 var theory = plan.Nodes.Where(n => n.Type == "theory" && n.AlgorithmKeys!.Contains(algorithm.Key)).ToArray();
                 var exercises = labs.Where(n => n.Lab?.Toolchain == "portable-cpp" && n.AlgorithmKeys!.Contains(algorithm.Key)).ToArray();
-                if (theory.Length == 0 || exercises.Length == 0) return Bad($"PALG002 algorithms[{plan.Algorithms!.ToList().IndexOf(algorithm)}]：{(theory.Length == 0 ? "缺少theory节点的algorithmKeys映射" : "缺少portable-cpp练习的algorithmKeys映射")}；每个算法至少一课一题，将实际对应节点映射到此算法，不能理论全填[]，不得删除算法规避。");
-                if (!exercises.Any(n => theory.Any(t => DependsOn(n, t.Key, plan.Nodes, []))))
+                if (theory.Length == 0) return Bad($"PALG002 algorithms[{plan.Algorithms!.ToList().IndexOf(algorithm)}]：缺少theory节点的algorithmKeys映射；每个算法至少一节理论课，实验可选，将实际对应节点映射到此算法，不能理论全填[]，不得删除算法规避。");
+                if (exercises.Length > 0 && !exercises.Any(n => theory.Any(t => DependsOn(n, t.Key, plan.Nodes, []))))
                     return Bad($"PALG003 algorithms[{plan.Algorithms!.ToList().IndexOf(algorithm)}]：对应练习必须直接或间接依赖本算法理论课。");
             }
         }
@@ -130,7 +131,7 @@ public static class PlanRules
                 "。必须引用本次实际提供且列入顶层sourceKeys的来源；不得编造来源。一次修正所有列出的练习。");
         foreach (var node in plan.Nodes)
         {
-            if (node.Type == "theory" && node.Lab is not null || node.Type == "lab" && node.Lab is null)
+            if (node.Type is ("theory" or "quiz") && node.Lab is not null || node.Type == "lab" && node.Lab is null)
                 return Bad("PVAL020：实验安排与课程类型不匹配。");
             if (node.Lab is not { } lab) continue;
             if (lab.Mode is not ("independent" or "continuous") ||

@@ -134,7 +134,7 @@ public sealed class AdaptivePlanTests : IDisposable
         Assert.True(PlanRules.Validate(Subject, Input, candidate with { Coverage = candidate.Coverage!.Select(e => e.State == "included" ? e with { Reason = "本节支持这些课程" } : e).ToArray() }, Sources, null, [collection]).Ok);
         Assert.NotNull(result.Value!.Collections);
         var teaching = PlanTeachingCoverage.Describe(result.Value);
-        Assert.Contains("资料页1–1（1页）：理论1课、实践1课", teaching);
+        Assert.Contains("资料页1–1（1页）：理论1课、实验1课、测验0课", teaching);
         Assert.DoesNotContain("资料页1–2", teaching); // Unavailable pages cannot masquerade as taught pages.
         Assert.False(PlanRules.Validate(Subject, Input, Candidate, Sources, null, [collection]).Ok);
         Assert.False(PlanRules.Validate(Subject, Input, candidate with { Coverage = candidate.Coverage!.Select(e => e with { State = "included", NodeKeys = ["n1"], Reason = null }).ToArray() }, Sources, null, [collection]).Ok);

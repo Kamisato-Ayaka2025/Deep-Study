@@ -45,6 +45,7 @@ public partial class MainWindow : Window
         tutoring = tutoringFactory; tutorFiles = files; lifecycle = subjectLifecycle;
         CourseModel.Nodes.CollectionChanged += (_, _) => { graphDirty = true; if (CourseMap.IsVisible) DrawGraph(); };
         workspace.References.CollectionChanged += (_, _) => { workspace.RefreshMaterials(); if (!syncReferences) planning.SetReferences(workspace.References.ToArray()); };
+        workspace.ExamCollectionIds.CollectionChanged += (_, _) => { workspace.RefreshMaterials(); if (!syncReferences) planning.SetExamCollections(workspace.ExamCollectionIds.ToArray()); };
         workspace.PendingCollections.CollectionChanged += (_, _) => { workspace.RefreshMaterials(); if (!syncReferences) planning.SetPendingCollections(workspace.PendingCollections.ToArray()); };
         workspace.PropertyChanged += (_, e) =>
         {
@@ -115,7 +116,12 @@ public partial class MainWindow : Window
     private void Chat_Click(object sender, RoutedEventArgs e) => Select("chat");
     private void GoChat_Click(object sender, RoutedEventArgs e) => Select("chat");
     private async void Courses_Click(object sender, RoutedEventArgs e) { Select("courses"); await RefreshCoursesAsync(); ShowCourseList(); }
-    private void Settings_Click(object sender, RoutedEventArgs e) => Select("settings");
+    private async void Settings_Click(object sender, RoutedEventArgs e)
+    { Select("settings"); if (SettingsPanel.IsVisible && CacheExpander.IsExpanded) await vm.LoadCacheAsync(); }
+    private async void Cache_Expanded(object sender, RoutedEventArgs e) => await vm.LoadCacheAsync();
+    private async void CachePrevious_Click(object sender, RoutedEventArgs e) => await vm.LoadCacheAsync(-1);
+    private async void CacheNext_Click(object sender, RoutedEventArgs e) => await vm.LoadCacheAsync(1);
+    private async void CacheRefresh_Click(object sender, RoutedEventArgs e) => await vm.LoadCacheAsync();
     private void Suggest_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string suggestion } && planning.CanEdit) planning.Request = suggestion;
@@ -152,6 +158,11 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog { Filter = "学习资料|*.pdf;*.ppt;*.pptx;*.md;*.markdown;*.c;*.cpp", Multiselect = true };
         if (dialog.ShowDialog(this) == true) { await workspace.ImportManyAsync(dialog.FileNames.Select(HostSelection.FromPlanFilePicker)); ShowImportResult(); }
+    }
+    private async void ImportExam_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Filter = "考题资料|*.pdf;*.ppt;*.pptx;*.md;*.markdown", Multiselect = true };
+        if (dialog.ShowDialog(this) == true) { await workspace.ImportManyAsync(dialog.FileNames.Select(HostSelection.FromExamFilePicker)); ShowImportResult(); }
     }
     private async void ResumeImports_Click(object sender, RoutedEventArgs e) => await workspace.ResumeImportsAsync();
     private void ClearImports_Click(object sender, RoutedEventArgs e) => workspace.ClearImportQueue();
@@ -197,6 +208,8 @@ public partial class MainWindow : Window
         syncReferences = true;
         try
         {
+            workspace.ExamCollectionIds.Clear();
+            foreach (var id in planning.ExamCollectionIds) workspace.ExamCollectionIds.Add(id);
             workspace.RestoreReferences(planning.LocalReferences);
             workspace.PendingCollections.Clear();
             foreach (var id in planning.PendingCollections) workspace.PendingCollections.Add(id);
@@ -358,7 +371,7 @@ public partial class MainWindow : Window
         selectedCourseNode = node;
         CourseModel.SelectNode(node);
         CourseDetailTitle.Text = node.Title;
-        CourseDetailMeta.Text = $"{(node.Type == "lab" ? "实践课" : "理论课")} · 预计 {node.Minutes} 分钟";
+        CourseDetailMeta.Text = $"{(node.Type == "quiz" ? "测验课" : node.Type == "lab" ? "实验课" : "理论课")} · 预计 {node.Minutes} 分钟";
         var lines = CourseModel.Detail.Replace("\r\n", "\n").Split('\n');
         CourseDetailStatus.Text = lines.FirstOrDefault(IsStatusLine) ?? "";
         CourseDetailText.Text = string.Join("\n", lines.Skip(1).Where(l => l.StartsWith("目标：", StringComparison.Ordinal) || l.StartsWith("建议先学：", StringComparison.Ordinal)));
@@ -440,7 +453,7 @@ public partial class MainWindow : Window
         var text = new StackPanel { Margin = new Thickness(14, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(new TextBlock { Text = node.Title, FontSize = 14.5, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("DsInkBrush"), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap });
         var meta = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) };
-        meta.Children.Add(new TextBlock { Text = lab ? "实践" : "理论", FontSize = 11.5, Foreground = (Brush)FindResource("DsMutedBrush") });
+        meta.Children.Add(new TextBlock { Text = node.Type == "quiz" ? "测验" : lab ? "实验" : "理论", FontSize = 11.5, Foreground = (Brush)FindResource("DsMutedBrush") });
         meta.Children.Add(new TextBlock { Text = "  ·  ", FontSize = 11.5, Foreground = (Brush)FindResource("DsFaintBrush") });
         meta.Children.Add(new TextBlock { Text = $"{node.Minutes} 分钟", FontSize = 11.5, Foreground = (Brush)FindResource("DsMutedBrush") });
         meta.Children.Add(new TextBlock { Text = "  ·  ", FontSize = 11.5, Foreground = (Brush)FindResource("DsFaintBrush") });

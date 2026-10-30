@@ -17,7 +17,7 @@ internal static class P25Harness
         Directory.CreateDirectory(root); var library = Path.Combine(root, "library"); Directory.CreateDirectory(library);
         var knowledge = new KnowledgeStore(root);
         var id = (await knowledge.SwitchAsync(new(Guid.NewGuid(), 0, HostSelection.FromFolderPicker(library)))).Value!.Id;
-        foreach (var path in Directory.GetFiles(args[Array.IndexOf(args, "--ppt-folder") + 1], "*.pptx"))
+        foreach (var path in Directory.GetFiles(@"E:\Code\Test_For_StudyHarness\PPT", "*.pptx"))
         {
             var imported = await knowledge.ImportCollectionAsync(HostSelection.FromFilePicker(path), id);
             if (!imported.Ok) throw new IOException(imported.Error!.Message);

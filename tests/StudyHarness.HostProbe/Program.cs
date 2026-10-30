@@ -3,6 +3,31 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        if (args.Contains("--p36-performance")) return P36Performance.Run(Path.GetFullPath(Value(args, "--evidence")!), Value(args, "--mode")!).GetAwaiter().GetResult();
+        if (args.Contains("--import-local-only"))
+        {
+            var root = Path.GetFullPath(Value(args, "--evidence")!);
+            Directory.CreateDirectory(root);
+            using (var pdf = UglyToad.PdfPig.PdfDocument.Open(Value(args, "--pdf")!)) Console.WriteLine($"PDF_PAGES={pdf.NumberOfPages}");
+            var type = typeof(Infrastructure.KnowledgeStore).Assembly.GetType("StudyHarness.Infrastructure.CollectionStore")!;
+            var store = Activator.CreateInstance(type, root, Guid.NewGuid())!;
+            try
+            {
+                var result = type.GetMethod("Import")!.Invoke(store, [Value(args, "--pdf")!, CancellationToken.None, null]);
+                File.WriteAllText(Path.Combine(root, "import.json"), System.Text.Json.JsonSerializer.Serialize(result, Contracts.Wire.Options));
+                Console.WriteLine("LOCAL_IMPORT_OK"); return 0;
+            }
+            catch (System.Reflection.TargetInvocationException e)
+            {
+                File.WriteAllText(Path.Combine(root, "failure.txt"), e.InnerException!.ToString());
+                Console.WriteLine(e.InnerException); return 2;
+            }
+        }
+        if (args.Contains("--p30-context-replay")) return P30ContextReplay.Run(args);
+        if (args.Contains("--p30-mapping-replay")) return P30MappingReplay.Run(args);
+        if (args.Contains("--p31-real")) return P31RealHarness.Run(args).GetAwaiter().GetResult();
+        if (args.Contains("--p31-feedback")) return P31RealHarness.Feedback(args).GetAwaiter().GetResult();
+        if (args.Contains("--p30-book")) return P30Harness.Run(args).GetAwaiter().GetResult();
         if (args.Contains("--p25-preflight")) return P25Harness.Run(args).GetAwaiter().GetResult();
         if (args.Contains("--p24-benchmark")) return P24Harness.Run(args).GetAwaiter().GetResult();
         if (args.Contains("--p23-import")) return P23Harness.Run(args).GetAwaiter().GetResult();

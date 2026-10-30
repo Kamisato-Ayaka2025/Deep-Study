@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "QuizLesson v5",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "blocks",
+    "questions",
+    "sourceKeys"
+  ],
+  "properties": {
+    "contextChecks": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "supported",
+          "sourceKeys",
+          "blockIds",
+          "explanation"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "supported": {
+            "type": "boolean"
+          },
+          "sourceKeys": {
+            "type": "array",
+            "maxItems": 99,
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          "blockIds": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          "explanation": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      }
+    },
+    "schemaVersion": {
+      "const": 5
+    },
+    "blocks": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paragraph",
+              "heading",
+              "code",
+              "math",
+              "diagram",
+              "example",
+              "question"
+            ]
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 16384
+          },
+          "questionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 80
+          }
+        },
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "question"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "questionId"
+          ],
+          "properties": {
+            "questionId": {
+              "$ref": "#/$defs/id"
+            },
+            "text": {
+              "type": "null"
+            }
+          }
+        },
+        "else": {
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "$ref": "#/$defs/text"
+            },
+            "questionId": {
+              "type": "null"
+            }
+          }
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "prompt",
+          "options",
+          "correctOptionId",
+          "explanation",
+          "kind",
+          "referenceAnswer"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "prompt": {
+            "$ref": "#/$defs/text"
+          },
+          "correctOptionId": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "explanation": {
+            "$ref": "#/$defs/text"
+          },
+          "options": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "text"
+              ],
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/id"
+                },
+                "text": {
+                  "$ref": "#/$defs/text"
+                }
+              }
+            }
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "choice",
+              "written"
+            ]
+          },
+          "referenceAnswer": {
+            "type": "string",
+            "maxLength": 32768
+          }
+        }
+      }
+    },
+    "sourceKeys": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 99,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/id"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16384
+    }
+  }
+}

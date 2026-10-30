@@ -188,21 +188,21 @@
                                         </Grid>
                                     </Expander.Header>
                                     <StackPanel x:Name="WorkspacePanel">
-                                        <TextBlock Text="支持 PDF、PPT、PPTX、Markdown、.c、.cpp。PPTX文字、表格和备注直接提取，图示页在线识别；旧PPT转换和幻灯片读图需要Microsoft PowerPoint。已完成页复用缓存。待识别页全部发送至DeepSeek识别。在线识别使用已配置模型并产生API费用；PPT默认8页并行，可选16页，PDF为8页并行。可取消并保留进度；原文件只读。" Style="{StaticResource DsSmall}"/>
+                                        <TextBlock Text="支持 PDF、PPT、PPTX、Markdown、.c、.cpp。PPTX文字、表格和备注直接提取，图示页在线识别；旧PPT转换和幻灯片读图需要Microsoft PowerPoint。已完成页复用缓存。待识别页全部发送至DeepSeek识别。在线识别使用已配置模型并产生API费用；PDF和PPT均默认8页并行。可取消并保留进度；原文件只读。" Style="{StaticResource DsSmall}"/>
                                         <WrapPanel Margin="0,12,0,0" IsEnabled="{Binding CanImport}">
                                             <Button x:Name="ImportFileButton" Content="导入文件" Click="ImportFile_Click" AutomationProperties.AutomationId="ImportFile" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8"/>
                                             <Button Content="导入目录" Click="ImportFolder_Click" AutomationProperties.AutomationId="ImportFolder" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8"/>
+                                        </WrapPanel>
+                                        <WrapPanel IsEnabled="{Binding CanImport}" Margin="0,0,0,8">
+                                            <Button Content="导入考题" Click="ImportExam_Click" AutomationProperties.AutomationId="ImportExam" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0"/>
+                                            <TextBlock Text="与教材一起使用，参照考点、题型和难度；不要求附带答案。" Style="{StaticResource DsSmall}" VerticalAlignment="Center"/>
                                         </WrapPanel>
                                         <TextBlock Text="{Binding ImportQueueText}" Style="{StaticResource DsSmall}" AutomationProperties.AutomationId="ImportQueue"/>
                                         <WrapPanel IsEnabled="{Binding CanResumeImports}">
                                             <Button Content="继续队列" Click="ResumeImports_Click" Style="{StaticResource SecondaryButton}" Margin="0,4,8,8"/>
                                             <Button Content="清空待处理队列" Click="ClearImports_Click" Style="{StaticResource GhostButton}" Margin="0,4,0,8"/>
                                         </WrapPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10" IsEnabled="{Binding CanOperate}">
-                                            <TextBlock Text="PPT扫描并发" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                            <ComboBox x:Name="PresentationConcurrencySelector" ItemsSource="{Binding PresentationConcurrencyChoices}" SelectedItem="{Binding PresentationConcurrency}" Width="80" AutomationProperties.AutomationId="PresentationConcurrency"/>
-                                            <TextBlock Text="页 · 网络稳定时可选16；暂停后可调整" Style="{StaticResource DsSmall}" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                                        </StackPanel>
+
                                         <ItemsControl ItemsSource="{Binding Materials}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
@@ -210,14 +210,14 @@
                                                         <DockPanel LastChildFill="True">
                                                             <Button DockPanel.Dock="Right" Content="×" Click="RemoveMaterial_Click" AutomationProperties.AutomationId="RemoveMaterial" AutomationProperties.Name="从本次计划移除资料" ToolTip="仅移出本次计划；保留原文件和扫描结果，重新添加同一文件无需重复扫描已完成页。" Style="{StaticResource GhostButton}" Padding="8,2"/>
                                                             <Button DockPanel.Dock="Right" Content="继续扫描" Click="ContinueMaterialScan_Click" Visibility="{Binding NeedsScan,Converter={StaticResource VisibleWhenTrue}}" IsEnabled="{Binding DataContext.CanOperate,RelativeSource={RelativeSource AncestorType=ItemsControl}}" AutomationProperties.AutomationId="ContinueMaterialScan" Style="{StaticResource GhostButton}" Padding="8,2"/>
-                                                            <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Foreground="{StaticResource DsPrimaryBrush}" FontSize="12.5" VerticalAlignment="Center"/>
+                                                            <StackPanel><TextBlock Text="{Binding RoleLabel}" Style="{StaticResource DsSmall}"/><TextBlock Text="{Binding Label}" TextWrapping="Wrap" Foreground="{StaticResource DsPrimaryBrush}" FontSize="12.5" VerticalAlignment="Center"/></StackPanel>
                                                         </DockPanel>
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                         <TextBlock Text="{Binding Status}" Style="{StaticResource DsSmall}" Margin="0,8,0,0" AutomationProperties.AutomationId="WorkspaceStatus"/>
-                                        <Border Style="{StaticResource DsSoftPanel}" Margin="0,10,0,0">
+                                        <Border x:Name="ScanProgressPanel" Style="{StaticResource DsSoftPanel}" Margin="0,10,0,0" Visibility="{Binding ShowScanProgress,Converter={StaticResource VisibleWhenTrue}}">
                                             <StackPanel>
                                                 <TextBlock Text="资料扫描进度" Style="{StaticResource DsH3}"/>
                                                 <TextBlock Text="{Binding SelectedCollection.Label}" Style="{StaticResource DsSmall}" Margin="0,6,0,0"/>
@@ -441,6 +441,31 @@
                                 </WrapPanel>
                                 <TextBlock Text="{Binding DataDirectoryStatus}" TextWrapping="Wrap" Style="{StaticResource DsCaption}"/>
                             </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource DsCard}" Margin="0,16,0,0">
+                            <Expander x:Name="CacheExpander" Header="资料缓存" Expanded="Cache_Expanded" AutomationProperties.AutomationId="CacheExpander">
+                                <StackPanel Margin="0,12,0,0">
+                                    <TextBlock Text="已导入：资料已保存在本机。已整理知识点：当前资料正文已全部整理并缓存。" TextWrapping="Wrap" Style="{StaticResource DsCaption}"/>
+                                    <TextBlock Text="{Binding CacheStatus}" Style="{StaticResource DsSmall}" TextWrapping="Wrap" Margin="0,8,0,8" AutomationProperties.AutomationId="CacheStatus"/>
+                                    <ItemsControl x:Name="CacheItems" ItemsSource="{Binding CachedMaterials}" AutomationProperties.AutomationId="CacheItems">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,6">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Name}" ToolTip="{Binding Location}" TextTrimming="CharacterEllipsis" Margin="0,0,16,0" Style="{StaticResource DsSmall}"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Status}" Style="{StaticResource DsSmall}"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <Button Content="上一页" Click="CachePrevious_Click" IsEnabled="{Binding CanPreviousCache}" Style="{StaticResource SecondaryButton}" AutomationProperties.AutomationId="CachePrevious"/>
+                                        <TextBlock Text="{Binding CachePageLabel}" VerticalAlignment="Center" Margin="12,0" Style="{StaticResource DsSmall}"/>
+                                        <Button Content="下一页" Click="CacheNext_Click" IsEnabled="{Binding CanNextCache}" Style="{StaticResource SecondaryButton}" AutomationProperties.AutomationId="CacheNext"/>
+                                        <Button Content="刷新" Click="CacheRefresh_Click" IsEnabled="{Binding CanRefreshCache}" Style="{StaticResource GhostButton}" Margin="12,0,0,0" AutomationProperties.AutomationId="CacheRefresh"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Expander>
                         </Border>
                         <Border Style="{StaticResource DsCardFlat}" Background="{StaticResource DsSurfaceAltBrush}" Margin="0,16,0,0" Padding="20,16">
                             <StackPanel Orientation="Horizontal">

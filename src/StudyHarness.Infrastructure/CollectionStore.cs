@@ -142,7 +142,7 @@ internal sealed partial class CollectionStore(string root, Guid libraryId)
                 }
             }
             using var document = PdfDocument.Open(source.Stream);
-            if (document.NumberOfPages > 2000) throw new InvalidDataException("PDF page budget");
+            if (document.NumberOfPages > 10000) throw new InvalidDataException("PDF页数超过10000页导入上限。");
             progress?.Report(new(0, document.NumberOfPages, "正在准备PDF页；已扫描页直接复用，不重复识别。"));
             for (var number = 1; number <= document.NumberOfPages; number++)
             {
@@ -226,7 +226,14 @@ internal sealed partial class CollectionStore(string root, Guid libraryId)
     public ResolvedSource? Resolve(SourceRef reference)
     {
         if (!File.Exists(Database)) return null;
-        using var pin = SafeKnowledgeFiles.PinDirectory(root); using var filePin = SafeKnowledgeFiles.PinExistingFile(Database); using var db = Open();
+        using var pin = SafeKnowledgeFiles.PinDirectory(root); using var filePin = SafeKnowledgeFiles.PinExistingFile(Database);
+        using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Database, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+        db.Open();
+        using (var schema = db.CreateCommand())
+        {
+            schema.CommandText = "PRAGMA user_version";
+            if (Convert.ToInt32(schema.ExecuteScalar()) > 2) throw new InvalidDataException("Unsupported collection schema");
+        }
         using var command = db.CreateCommand(); command.CommandText = "SELECT text,reference FROM chunks WHERE id=$id AND version_id=$version";
         command.Parameters.AddWithValue("$id", reference.NodeId.ToString()); command.Parameters.AddWithValue("$version", reference.VersionId.ToString());
         using var reader = command.ExecuteReader();

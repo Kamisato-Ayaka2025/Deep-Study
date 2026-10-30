@@ -8,9 +8,9 @@ public static class StrategyRules
     public static bool Valid(StrategyDecision? strategy)
     {
         if (strategy is null || strategy.SchemaVersion != 1 || !Text(strategy.Domain, 200) || !Text(strategy.Reason, 2000) ||
-            strategy.TeachingModes is null || strategy.TeachingModes.Count is < 1 or > 3 ||
+            strategy.TeachingModes is null || strategy.TeachingModes.Count is < 1 or > 4 ||
             strategy.TeachingModes.Distinct().Count() != strategy.TeachingModes.Count ||
-            strategy.TeachingModes.Any(m => m is not ("theory" or "exercise" or "project")) ||
+            strategy.TeachingModes.Any(m => m is not ("theory" or "quiz" or "exercise" or "project")) ||
             strategy.MaterialCapabilities is null || strategy.MaterialCapabilities.Count > 4 ||
             strategy.MaterialCapabilities.Distinct().Count() != strategy.MaterialCapabilities.Count ||
             strategy.MaterialCapabilities.Any(c => c is not ("paper-exercise" or "manual-project" or "portable-c" or "portable-cpp")) ||

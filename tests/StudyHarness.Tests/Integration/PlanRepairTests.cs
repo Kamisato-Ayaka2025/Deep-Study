@@ -12,8 +12,8 @@ public sealed class PlanRepairTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "StudyHarness-repair", Guid.NewGuid().ToString("N"));
     private static PlanCandidate Candidate => new("集合", "零基础", "理解集合", 120, "Adaptive", [], [], [], ["s1"],
         [new("n1", "定义", "theory", ["解释集合"], [], 60, null),
-         new("n2", "证明", "lab", ["证明相等"], ["n1"], 60, new("independent", null, "paper-exercise", ["s1"], "训练", "exercise"))],
-        2, Strategy: new("集合", ["theory", "exercise"], "先理解再证明", ["paper-exercise"], [], []), Coverage: []);
+         new("n2", "证明", "lab", ["证明相等"], ["n1"], 60, new("independent", null, "manual-project", ["s1"], "训练", "project"))],
+        2, Strategy: new("集合", ["theory", "project"], "先理解再证明", ["manual-project"], [], []), Coverage: []);
     private static string Json(PlanCandidate p) => JsonSerializer.Serialize(p, Wire.Options);
     private sealed class Provider : IModelProvider
     {
@@ -31,7 +31,9 @@ public sealed class PlanRepairTests : IDisposable
         public Task SaveBudgetAsync(TaskBudgetRecord record, CancellationToken ct = default) => Task.CompletedTask;
         public Task RecordAsync(TaskTiming timing, CancellationToken ct = default) { Rows.Add(timing); return Task.CompletedTask; }
     }
-    private async Task<(PlanningService Service, PlanningReview Review, Provider Provider, Telemetry Telemetry)> Setup(bool redundantMetadataCase = false)
+    private sealed class LargeCaps : IModelCapabilitySource
+    { public Task<ModelCapabilities> GetAsync(string model, CancellationToken ct) => Task.FromResult(new ModelCapabilities(model, 1048576, 32768, true, DateTimeOffset.UtcNow, true)); }
+    private async Task<(PlanningService Service, PlanningReview Review, Provider Provider, Telemetry Telemetry)> Setup(bool redundantMetadataCase = false, bool largeCapacity = false)
     {
         var knowledge = new KnowledgeStore(root); var library = Path.Combine(root, "library"); Directory.CreateDirectory(library);
         var selected = await knowledge.SwitchAsync(new(Guid.NewGuid(), 0, HostSelection.FromFolderPicker(library)));
@@ -44,7 +46,7 @@ public sealed class PlanRepairTests : IDisposable
         }
         var refs = (await knowledge.SearchAsync(selected.Value.Id, "", [])).Fragments.Select(f => f.Reference).ToArray();
         var provider = new Provider(); var telemetry = new Telemetry();
-        var service = new PlanningService(new SqlitePlanningStore(root), knowledge, new(new SqliteSettingsStore(root)), new(provider), new PlanParser(), telemetry);
+        var service = new PlanningService(new SqlitePlanningStore(root), knowledge, new(new SqliteSettingsStore(root)), new(provider, largeCapacity ? new LargeCaps() : null), new PlanParser(), telemetry);
         var draft = (await service.StartAsync(new(Guid.NewGuid(), 0, new("学习集合", redundantMetadataCase ? null : "零基础", "理解集合", 120, "Adaptive", refs)))).Value!;
         return (service, (await service.PrepareAsync(draft.Id, 0)).Value!, provider, telemetry);
     }
@@ -93,13 +95,13 @@ public sealed class PlanRepairTests : IDisposable
     [Fact]
     public void Derivation_OnlyRedundantSummaries_UnknownCapabilitiesAndWrongKindsRemainInvalid()
     {
-        var p = Candidate with { Strategy = Candidate.Strategy! with { TeachingModes = ["theory", "project"], MaterialCapabilities = ["manual-project"] } };
+        var p = Candidate with { Strategy = Candidate.Strategy! with { TeachingModes = ["theory", "exercise"], MaterialCapabilities = ["paper-exercise"] } };
         var parser = new PlanParser();
         Assert.False(AdaptivePlanRules.Valid(parser.ParseRaw(Json(p)).Value!));
         var derived = parser.Parse(Json(p)); Assert.True(derived.Ok); Assert.True(AdaptivePlanRules.Valid(derived.Value!));
         Assert.Equal(Json(Candidate), Json(derived.Value!));
         Assert.False(parser.Parse(Json(p with { Strategy = p.Strategy! with { MaterialCapabilities = ["shell"] } })).Ok);
-        p = Candidate with { Nodes = [Candidate.Nodes[0], Candidate.Nodes[1] with { Lab = Candidate.Nodes[1].Lab! with { Kind = "project" } }] };
+        p = Candidate with { Nodes = [Candidate.Nodes[0], Candidate.Nodes[1] with { Lab = Candidate.Nodes[1].Lab! with { Kind = "exercise" } }] };
         Assert.Contains(AdaptivePlanRules.Problems(parser.Parse(Json(p)).Value!), s => s.StartsWith("PSTR005 nodes[1]"));
         var node = JsonNode.Parse(Json(Candidate))!; node["strategy"]!.AsObject().Remove("teachingModes"); node["strategy"]!.AsObject().Remove("materialCapabilities");
         Assert.True(parser.Parse(node.ToJsonString()).Ok); Assert.False(parser.ParseRaw(node.ToJsonString()).Ok);
@@ -209,9 +211,19 @@ public sealed class PlanRepairTests : IDisposable
     public async Task OversizedCandidate_StopsWithoutTruncatingOrDispatchingRepair()
     {
         var (service, review, provider, _) = await Setup();
-        provider.Reply = _ => Result<ProviderReply>.Success(new(new string('x', 65537), true));
+        provider.Reply = _ => Result<ProviderReply>.Success(new(new string('x', 524289), true));
         var result = await service.ProposeAsync(review, true);
         Assert.False(result.Ok); Assert.Contains("PREPAIR001", result.Error!.Message); Assert.Single(provider.Requests);
+    }
+    [Fact]
+    public async Task LargeValidJsonCandidate_RepairsWithinVerifiedContextWithoutTruncation()
+    {
+        var (service, review, provider, _) = await Setup(largeCapacity: true);
+        var invalid = new string(' ', 175000) + Json(Candidate with { WeeklyMinutes = 480 });
+        provider.Reply = n => Result<ProviderReply>.Success(new(n == 1 ? invalid : Json(Candidate), true));
+        Assert.True((await service.ProposeAsync(review, true)).Ok);
+        Assert.Equal(2, provider.Requests.Count);
+        Assert.Equal(invalid, provider.Requests[1].PlanRepair!.Candidate);
     }
     [Fact]
     public async Task NonTransientProviderFailure_DoesNotRetry()

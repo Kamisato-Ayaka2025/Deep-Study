@@ -11,19 +11,24 @@ public static class LessonRules
     public static Result<TheoryLesson> Validate(TheoryLesson? lesson, IReadOnlyList<PlanSource> sentSources)
     {
         Result<TheoryLesson> Bad() => Result<TheoryLesson>.Fail(ErrorCode.INVALID_MODEL_OUTPUT, "课件结构、题目或来源无效。");
-        if (lesson is null || lesson.SchemaVersion is not (1 or 2 or 3 or 4) || lesson.Blocks is null || lesson.Questions is null ||
-            lesson.SourceKeys is null || lesson.SourceKeys.Count > 99 || (lesson.SchemaVersion < 4 && lesson.SourceKeys.Count == 0) || lesson.SourceKeys.Any(s => !Id(s)) ||
-            sentSources is null || sentSources.Count > 99 || sentSources.Any(s => s is null || !Id(s.Key) || s.Reference is null ||
+        if (lesson is null || lesson.SchemaVersion is not (1 or 2 or 3 or 4 or 5) || lesson.Blocks is null || lesson.Questions is null ||
+            lesson.SourceKeys is null || lesson.SourceKeys.Count > 99 || (lesson.SchemaVersion < 3 && lesson.SourceKeys.Count == 0) || lesson.SourceKeys.Any(s => !Id(s)) ||
+            sentSources is null || sentSources.Count > CourseMaterials.MaximumContextReferences || sentSources.Any(s => s is null || !Id(s.Key) || s.Reference is null ||
                 s.Reference.SchemaVersion != 1 || s.Reference.LibraryId == Guid.Empty || s.Reference.NodeId == Guid.Empty ||
                 s.Reference.VersionId == Guid.Empty || s.Reference.ContentHash is null || s.Reference.ContentHash.Length != 64 ||
                 !s.Reference.ContentHash.All(Uri.IsHexDigit) || s.Reference.Locator is null) ||
-            lesson.Blocks.Count < 2 || lesson.Blocks.Count > (lesson.SchemaVersion >= 2 ? 128 : 200) || lesson.Questions.Count < 1 || lesson.Questions.Count > (lesson.SchemaVersion >= 2 ? 20 : 10) ||
+            lesson.Blocks.Count < (lesson.SchemaVersion == 5 ? 1 : 2) || lesson.Blocks.Count > (lesson.SchemaVersion >= 2 ? 128 : 200) || lesson.Questions.Count < 1 || lesson.Questions.Count > (lesson.SchemaVersion == 5 ? 100 : lesson.SchemaVersion >= 2 ? 20 : 10) ||
             lesson.Blocks.Any(b => b is null || !Id(b.Id)) || lesson.Questions.Any(q => q is null || !Id(q.Id)) ||
             lesson.Blocks.Select(b => b.Id).Distinct().Count() != lesson.Blocks.Count ||
             lesson.Questions.Select(q => q.Id).Distinct().Count() != lesson.Questions.Count ||
-            !lesson.Blocks.Any(b => b.Kind == "example")) return Bad();
+            lesson.SchemaVersion != 5 && !lesson.Blocks.Any(b => b.Kind == "example")) return Bad();
         foreach (var q in lesson.Questions)
         {
+            if (lesson.SchemaVersion == 5 && q.Kind == "written")
+            {
+                if (!Text(q.Prompt, 16384) || !Text(q.ReferenceAnswer, 32768) || q.Options is not { Count: 0 }) return Bad();
+                continue;
+            }
             if (!Text(q.Prompt, lesson.SchemaVersion >= 2 ? 16384 : 16000) || !Text(q.Explanation, lesson.SchemaVersion >= 2 ? 16384 : 16000) || q.Options is null || q.Options.Count is < 2 or > 10 || (lesson.SchemaVersion >= 3 && q.Options.Count != 4) ||
                 q.Options.Any(o => o is null || !Id(o.Id) || !Text(o.Text)) ||
                 q.Options.Select(o => o.Id).Distinct().Count() != q.Options.Count ||

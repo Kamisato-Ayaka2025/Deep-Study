@@ -9,6 +9,10 @@ public interface ITaskTelemetry
     Task SaveBudgetAsync(TaskBudgetRecord record, CancellationToken ct = default);
     Task RecordAsync(TaskTiming timing, CancellationToken ct = default);
 }
+public interface IContextDiagnostics
+{
+    Task<string?> ContextGapAsync(Guid taskId, CancellationToken ct = default);
+}
 
 internal sealed class TaskTrace(ITaskTelemetry? telemetry, Guid taskId, DateTimeOffset started, CancellationToken ct) : IAsyncDisposable
 {

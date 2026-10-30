@@ -24,11 +24,12 @@ public sealed class TheoryLessonParser : ITheoryLessonParser
         {
             if (text.Length > 4194304) throw new JsonException();
             var node = (JsonNode.Parse(ModelJson.Unwrap(text)) ?? throw new JsonException()).AsObject();
+            if (node["schemaVersion"]?.GetValue<int>() == 5) return QuizLesson.Parse(text, sentSources);
             if (node["schemaVersion"]?.GetValue<int>() is not (2 or 3 or 4) && text.Length > 262144) throw new JsonException();
             if (new[] { "completed", "status", "script", "apiKey", "path" }.Any(node.ContainsKey)) throw new JsonException();
             if (!node.ContainsKey("schemaVersion")) node["schemaVersion"] = 1;
             // Host provenance is the approved snapshot, not an invented external citation.
-            if (!node.ContainsKey("sourceKeys")) node["sourceKeys"] = JsonSerializer.SerializeToNode(sentSources.Select(s => s.Key));
+            if (!node.ContainsKey("sourceKeys")) node["sourceKeys"] = node["schemaVersion"]!.GetValue<int>() < 3 ? JsonSerializer.SerializeToNode(sentSources.Select(s => s.Key)) : new JsonArray();
             foreach (var key in node.Select(p => p.Key).Where(k => k is not ("schemaVersion" or "blocks" or "questions" or "sourceKeys")).ToArray()) node.Remove(key);
             if (node["blocks"] is JsonArray blocks && node["questions"] is JsonArray questions)
             {

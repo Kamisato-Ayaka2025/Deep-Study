@@ -18,6 +18,11 @@ public sealed class PresentationTests : IDisposable
         var id = (await store.SwitchAsync(new(Guid.NewGuid(), 0, HostSelection.FromFolderPicker(library)))).Value!.Id;
         return (store, id, Path.Combine(root, "slides.pptx"));
     }
+    private sealed class NoDispatch : IModelProvider
+    {
+        public string Destination => "local:offline";
+        public Task<Result<ProviderReply>> SendAsync(ApprovedModelRequest r, CancellationToken ct) => throw new InvalidOperationException("No paid calls");
+    }
     private static void Fixture(string path, bool corrupt = false)
     {
         using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
@@ -46,6 +51,12 @@ public sealed class PresentationTests : IDisposable
         foreach (var reference in snapshot.References) text.Add((await store.ResolveAsync(reference)).Text!);
         Assert.Contains("retransmission", text[0]); Assert.Contains(text, t => t.Contains("Teacher note"));
         Assert.Contains(text, t => t.Contains("| Sequence |")); Assert.Contains(text, t => t.Contains("| 42 |"));
+        var collection = new PlanCollection(library, snapshot.Manifest, snapshot.References, snapshot.Structure, SourceKind: snapshot.Collection.SourceKind);
+        var batches = await BookKnowledge.PrepareAsync(store, [collection], new(new NoDispatch(), new BookKnowledgeTests.Caps()), "deepseek-flash", default);
+        Assert.Contains("幻灯片专用", batches[0].Review.Sources[0].Text);
+        var full = string.Join("\n", batches.SelectMany(b => b.Review.Sources).Select(x => x.Text));
+        Assert.Contains("Teacher note", full); Assert.Contains("| Sequence |", full); Assert.Contains("Wireless modulation", full);
+        Assert.True(snapshot.References.ToHashSet().SetEquals(batches.SelectMany(b => b.Sources).Select(s => s.Reference)));
         var scan = await store.ScanStateAsync(library, snapshot.Collection.Id, default); Assert.Equal(new[] { 2 }, scan.PendingPages);
         var repeat = (await store.ImportCollectionAsync(HostSelection.FromFilePicker(path), library)).Value!;
         Assert.Equal(snapshot.Collection.Version, repeat.Collection.Version);

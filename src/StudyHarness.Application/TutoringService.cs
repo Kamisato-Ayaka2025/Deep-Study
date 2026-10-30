@@ -45,10 +45,12 @@ public sealed class TutoringSession(IPlanningStore plans, ILearningStore learnin
         if (draft?.Confirmed != true || definition is null) throw new InvalidOperationException("课程不存在或尚未确认。");
         theory = definition.Type == "theory";
         var context = JsonSerializer.Serialize(new { definition.Title, definition.Type, definition.Objectives }, Wire.Options);
-        if (definition.Type == "theory")
+        if (definition.Type is "theory" or "quiz")
         {
             var lesson = await learning.GetLessonAsync(subjectId, nodeKey, ct);
-            if (lesson.Ok) context += "\n本课正文：" + JsonSerializer.Serialize(lesson.Value!.Blocks.Where(b => b.Kind != "question"), Wire.Options);
+            if (lesson.Ok) context += definition.Type == "quiz"
+                ? "\n本课测验（仅题干与已提交作答，不含参考答案）：" + JsonSerializer.Serialize(lesson.Value!.Questions.Select(q => new { q.Id, q.Prompt, q.Options, q.ResponseText }), Wire.Options)
+                : "\n本课正文：" + JsonSerializer.Serialize(lesson.Value!.Blocks.Where(b => b.Kind != "question"), Wire.Options);
         }
         else
         {

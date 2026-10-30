@@ -49,7 +49,7 @@ footer{font-size:12px;color:var(--faint);border-top:1px solid var(--line);margin
 input{margin-right:0}
 .math{overflow:auto}
 .display-math{display:block;max-width:100%;overflow-x:auto;overflow-y:hidden;margin:14px 0}
-.inline-math{display:inline-block;max-width:100%;overflow-x:auto;overflow-y:hidden}
+.inline-math{display:inline;overflow:visible}
 .math .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden}
 .token-keyword{color:#8dcfff}
 .token-comment{color:#8fa9a0}
@@ -66,3 +66,5 @@ section.diagram{display:block}
  button:active:enabled{transform:translateY(0);box-shadow:none}
  .question label{transition:background .15s ease,border-color .15s ease}
 }
+
+.question textarea{box-sizing:border-box;width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;resize:vertical;}

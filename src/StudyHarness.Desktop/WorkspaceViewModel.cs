@@ -8,31 +8,28 @@ using StudyHarness.Contracts;
 namespace StudyHarness.Desktop;
 public sealed record CollectionChoice(CollectionSnapshot Snapshot)
 { public string Label => $"{Snapshot.Collection.Label} · 正文{Snapshot.Collection.ReadyCount}/{Snapshot.Collection.EntryCount}"; }
-public sealed record MaterialChoice(string Label, IReadOnlyList<SourceRef> References, Guid? PendingId = null, Guid? CollectionId = null)
-{ public bool NeedsScan => PendingId is not null; }
+public sealed record MaterialChoice(string Label, IReadOnlyList<SourceRef> References, Guid? PendingId = null, Guid? CollectionId = null, bool IsExam = false)
+{ public string RoleLabel => IsExam ? "考题参照" : "学习资料"; public bool NeedsScan => PendingId is not null; }
 public sealed partial class WorkspaceViewModel(WorkspaceService service, OcrService? ocr = null, AutomaticPdfScanService? automaticScan = null) : INotifyPropertyChanged
 {
     private OcrReview? ocrReview;
     private CollectionChoice? selectedCollection;
     private string ocrPages = "", ocrPreview = "选择扫描教材和页序，先预览本批外发范围。";
     public ObservableCollection<CollectionChoice> Collections { get; } = [];
+    public ObservableCollection<Guid> ExamCollectionIds { get; } = [];
     public ObservableCollection<Guid> PendingCollections { get; } = [];
     private static bool Belongs(CollectionSnapshot snapshot, SourceRef reference) => snapshot.References.Any(r => r.LibraryId == reference.LibraryId && r.NodeId == reference.NodeId);
     public IReadOnlyList<MaterialChoice> Materials => References.GroupBy(r => (r.LibraryId, r.Locator.SourceLabel))
         .Where(g => !Collections.Any(c => PendingCollections.Contains(c.Snapshot.Collection.Id) && g.Any(r => Belongs(c.Snapshot,r))))
-        .Select(g => new MaterialChoice(g.Key.SourceLabel, g.ToArray(), CollectionId: Collections.FirstOrDefault(c => c.Snapshot.Collection.SourceKind is ("pdf" or "presentation") && g.Any(r => Belongs(c.Snapshot,r)))?.Snapshot.Collection.Id))
+        .Select(g => new MaterialChoice(g.Key.SourceLabel, g.ToArray(), CollectionId: Collections.FirstOrDefault(c => g.Any(r => Belongs(c.Snapshot,r)))?.Snapshot.Collection.Id, IsExam: Collections.Any(c => ExamCollectionIds.Contains(c.Snapshot.Collection.Id) && g.Any(r => Belongs(c.Snapshot, r)))))
         .Concat(PendingCollections.Select(id => new MaterialChoice(
-            (Collections.FirstOrDefault(c => c.Snapshot.Collection.Id == id)?.Label ?? "待识别教材") + " · 待完成扫描", References.Where(r => Collections.Any(c => c.Snapshot.Collection.Id == id && Belongs(c.Snapshot,r))).ToArray(), id, id))).ToArray();
+            (Collections.FirstOrDefault(c => c.Snapshot.Collection.Id == id)?.Label ?? "待识别教材") + " · 待完成扫描", References.Where(r => Collections.Any(c => c.Snapshot.Collection.Id == id && Belongs(c.Snapshot,r))).ToArray(), id, id, ExamCollectionIds.Contains(id)))).ToArray();
     private int scanCompleted, scanTotal;
     public int ScanCompleted => scanCompleted;
     public int ScanTotal => scanTotal;
-    public IReadOnlyList<int> PresentationConcurrencyChoices { get; } = [8, 16];
-    private int presentationConcurrency = 8;
-    public int PresentationConcurrency
-    {
-        get => presentationConcurrency;
-        set { if (!Busy && value is 8 or 16) { presentationConcurrency = value; Notify(); } }
-    }
+    public bool ShowScanProgress => SelectedCollection is { } selected &&
+        selected.Snapshot.Collection.SourceKind is ("pdf" or "presentation") &&
+        selected.Snapshot.Collection.ReadyCount < selected.Snapshot.Collection.EntryCount;
     public double ScanPercent => scanTotal == 0 ? 0 : 100.0 * scanCompleted / scanTotal;
     public bool ScanIndeterminate => Busy && scanTotal == 0;
     public string ScanProgressText => $"已处理 {scanCompleted} / {scanTotal} 页（{ScanPercent:0.0}%）";
@@ -49,12 +46,13 @@ public sealed partial class WorkspaceViewModel(WorkspaceService service, OcrServ
         {
         var snapshot=Collections.FirstOrDefault(c=>c.Snapshot.Collection.Id==material.CollectionId)?.Snapshot;
         RemoveQueuedMaterial(snapshot?.Collection.Label ?? material.Label);
+        if (material.CollectionId is { } removedId) ExamCollectionIds.Remove(removedId);
         if (snapshot?.Collection.SourceKind is ("pdf" or "presentation") && material.CollectionId is { } id)
         {
             var references=References.Where(r=>Belongs(snapshot,r)).Concat(material.References).Distinct().ToArray();
             var removed = references.ToHashSet();
             References.Replace(References.Where(r => !removed.Contains(r)));
-            PendingCollections.Remove(id); SelectedCollection = null;
+            PendingCollections.Remove(id); ExamCollectionIds.Remove(id); SelectedCollection = null;
         }
         else
         {
@@ -69,7 +67,13 @@ public sealed partial class WorkspaceViewModel(WorkspaceService service, OcrServ
         return Task.CompletedTask;
         });
     }
-    public Task ContinueScanAsync() => Run(ScanCoreAsync);
+    public Task ContinueScanAsync()
+    {
+        if (importQueue.TryPeek(out var queued) && (queued.IsDirectory ||
+            string.Equals(System.IO.Path.GetFileName(queued.Path), SelectedCollection?.Snapshot.Collection.Label, StringComparison.OrdinalIgnoreCase)))
+            return ResumeImportsAsync();
+        return Run(ScanCoreAsync);
+    }
     public Task ContinueMaterialScanAsync(MaterialChoice material)
     {
         if (Busy) return Task.CompletedTask;
@@ -82,9 +86,8 @@ public sealed partial class WorkspaceViewModel(WorkspaceService service, OcrServ
         var id = selected.Snapshot.Collection.Id;
         var previousRefs = References.Where(r => Belongs(selected.Snapshot,r)).ToArray();
         if (selected.Snapshot.Collection.ReadyCount < selected.Snapshot.Collection.EntryCount && !PendingCollections.Contains(id)) PendingCollections.Add(id);
-        automaticScan.PresentationConcurrency = PresentationConcurrency;
         Status = selected.Snapshot.Collection.SourceKind == "presentation"
-            ? $"PPT连续扫描中：最多{PresentationConcurrency}页并行；可取消并保留进度。"
+            ? "PPT连续扫描中：最多8页并行；可取消并保留进度。"
             : "自动扫描中：待识别页全部在线处理，最多8页并行；可取消并保留进度。";
         string outcome;
         try
@@ -127,7 +130,7 @@ public sealed partial class WorkspaceViewModel(WorkspaceService service, OcrServ
             .Where(e => e.QualityFlags.Contains("ocrRequired") && int.TryParse(e.Locator, out _))
             .Take(20).Select(e => e.Locator) ?? []);
     }
-    public CollectionChoice? SelectedCollection { get => selectedCollection; set { selectedCollection = value; ocrReview = null; OcrPreview = "选择页范围后重新预览。"; SetScanProgress(value?.Snapshot.Collection.ReadyCount ?? 0,value?.Snapshot.Collection.EntryCount ?? 0); Notify(); Notify(nameof(CollectionStructure)); } }
+    public CollectionChoice? SelectedCollection { get => selectedCollection; set { selectedCollection = value; ocrReview = null; OcrPreview = "选择页范围后重新预览。"; SetScanProgress(value?.Snapshot.Collection.ReadyCount ?? 0,value?.Snapshot.Collection.EntryCount ?? 0); Notify(); Notify(nameof(CollectionStructure)); Notify(nameof(ShowScanProgress)); } }
     public string CollectionStructure => SelectedCollection?.Snapshot.Structure is { } index
         ? $"索引{index.IndexVersion} / 切分{index.ChunkerVersion}；源hash={index.SourceHash}\n" + string.Join("\n", index.Nodes.Select(n => $"{n.Title} · {n.Confidence} · {string.Join(",", n.Spans.Select(s => s.EntryKey + ":" + s.Start + "-" + s.End))}")) + "\n语义单元：\n" + string.Join("\n", index.Units.Select(u => $"{u.Kind} · {u.Id} · 父={u.ParentUnitId} · 续接={string.Join(",", u.ContinuationIds)}"))
         : "尚无结构索引；旧引用继续可用。重新导入同一教材可使用缓存重建，不重新OCR。";
@@ -232,6 +235,8 @@ public sealed partial class WorkspaceViewModel(WorkspaceService service, OcrServ
     {
         if (library is null) { Status = "请先选择资料库。"; return false; }
         Status = "正在自动识别文件类型、整理目录并提取正文，请稍候。";
+        SelectedCollection = null;
+        OcrPages = "";
         SetScanProgress(0, 0);
         var preparing = true;
         var progress = new Progress<ImportProgress>(p =>
@@ -252,9 +257,12 @@ public sealed partial class WorkspaceViewModel(WorkspaceService service, OcrServ
         {
             References.Replace(References.Concat(importedReferences).Distinct());
             await LoadCollections(ct);
-            SelectedCollection = Collections.LastOrDefault(c => result.Value?.Files.Any(f => f.SourceLabel == c.Snapshot.Collection.Label) == true) ?? SelectedCollection;
+            SelectedCollection = Collections.LastOrDefault(c => result.Value?.Files.Any(f => f.Ok && f.SourceLabel == c.Snapshot.Collection.Label) == true);
             foreach (var item in Collections.Where(c => result.Value?.Files.Any(f => f.Ok && f.SourceLabel == c.Snapshot.Collection.Label) == true))
             {
+                var collectionId = item.Snapshot.Collection.Id;
+                if (selection.IsExamImport && !ExamCollectionIds.Contains(collectionId)) ExamCollectionIds.Add(collectionId);
+                else if (!selection.IsExamImport) ExamCollectionIds.Remove(collectionId);
                 if (item.Snapshot.References.Count == 0 && !PendingCollections.Contains(item.Snapshot.Collection.Id)) PendingCollections.Add(item.Snapshot.Collection.Id);
                 else if (item.Snapshot.References.Count > 0) PendingCollections.Remove(item.Snapshot.Collection.Id);
             }

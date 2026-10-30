@@ -2,7 +2,7 @@
 let current=null, restoring=false, saveTimer=null, scrollInitialized=false;
 const element=(tag,text,cls)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(cls)el.className=cls;return el;};
 function message(action,data){if(current)window.chrome.webview.postMessage({action,lessonHash:current.identity.lessonHash,...data});}
-function math(text,target,displayMode=false){try{katex.render(text,target,{displayMode,throwOnError:true,trust:false,strict:'error',maxExpand:500,maxSize:20});return true;}catch{target.textContent=text;return false;}}
+function math(text,target,displayMode=false){try{katex.render(text,target,{displayMode,throwOnError:true,trust:false,strict:code=>code==='unicodeTextInMathMode'?'ignore':'error',maxExpand:500,maxSize:20});return true;}catch{target.textContent=text;return false;}}
 function renderCode(text,language=''){
  const pre=element('pre');pre.className='code-block';
  const plain=()=>{pre.textContent=text;return pre;};
@@ -27,18 +27,32 @@ function renderCode(text,language=''){
   return pre;
  }catch{return plain();}
 }
+// Recover explicit TeX, numeric scripts and bracketed mathematical notation in
+// prose. Never process code, paths or ordinary identifiers such as x_1 here.
+function looseMath(text,target){
+ const re=/(?<![\w/:\\])\\(?:log|ln|lg|sin|cos|tan|exp)(?:[_^](?:\{[^{}\n]+\}|[A-Za-z0-9+-]+))*\s*(?:\((?:[^()\n]|\([^()\n]*\))*\)|（[^（）\n]*）)|\\(?:overline|underline|sqrt|frac|textbf|mathrm|mathbf)\{(?:[^{}\n]|\{[^{}\n]*\})+\}(?:\{(?:[^{}\n]|\{[^{}\n]*\})+\})?|(?<![\w./\\])(?:\[-\[[A-Za-z]+_[A-Za-z0-9]+\][移补]\][移补]|\[[A-Za-z]+_[A-Za-z0-9]+\](?:[移补])?)(?![\w/\\])|(?<![\w./\\])\d+(?:\.\d+|…\d+|\.{3}\d+)?(?:_\d+|\^(?:\{[-+A-Za-z0-9 ]+\}|[-+]?\d+|[A-Za-z]))(?![\w./\\])/g;
+ let last=0;
+ for(const m of text.matchAll(re)){
+  target.append(document.createTextNode(text.slice(last,m.index)));
+  const formula=element('span',undefined,'inline-math');
+  const tex=m[0].replace(/\]([移补])/g,(_,label)=>']_{\\text{'+label+'}}');
+  if(!math(tex,formula))formula.textContent=m[0];
+  target.append(formula);last=m.index+m[0].length;
+ }
+ target.append(document.createTextNode(text.slice(last)));
+}
 function rich(text,tag='span'){
  const target=element(tag);let last=0;
  // Parse only bounded local formatting; model text never becomes HTML. Code spans are literal.
  const re=/`([^`\n]+)`|\*\*([^*]+)\*\*|\$\$([^$]+)\$\$|\$([^$\n]+)\$|\\\(([^\n]*?)\\\)|\\\[([\s\S]*?)\\\]/g;
  for(const m of text.matchAll(re)){
-  target.append(document.createTextNode(text.slice(last,m.index)));
+  looseMath(text.slice(last,m.index),target);
   if(m[1]!==undefined)target.append(element('code',m[1]));
   else if(m[2]!==undefined)target.append(rich(m[2],'strong'));
   else {const display=m[3]!==undefined||m[6]!==undefined;const formula=element('span',undefined,display?'display-math':'inline-math');math(m[3]??m[4]??m[5]??m[6],formula,display);target.append(formula);}
   last=m.index+m[0].length;
  }
- target.append(document.createTextNode(text.slice(last)));return target;
+ looseMath(text.slice(last),target);return target;
 }
 function paragraph(text){
  const target=element('div');const rawLines=text.match(/[^\r\n]*(?:\r\n|\r|\n|$)/g)??[];const lines=rawLines.map(l=>l.replace(/(?:\r\n|\r|\n)$/,''));let pending=[],list=null;
@@ -80,8 +94,8 @@ function render(reader){
  const same=current?.identity.lessonHash===reader.identity.lessonHash;
  const previous=same&&scrollInitialized?window.scrollY:null;
  if(!same)scrollInitialized=false;
- current=reader;restoring=true;document.getElementById('title').textContent='课程正文';
- document.getElementById('state').textContent=reader.completedAt?'已完成 · 再次作答不会撤回完成记录':reader.canAnswer?'可测验 · 每题至少答对一次即可完成':'历史版本 · 仅可阅读';
+ current=reader;restoring=true;document.querySelector('header span').textContent=reader.courseType==='quiz'?'DEEP STUDY / 测验':'DEEP STUDY / 理论学习';document.getElementById('quiz').hidden=reader.courseType==='quiz';document.getElementById('title').textContent=reader.courseType==='quiz'?'课程测验':'课程正文';
+ document.getElementById('state').textContent=reader.completedAt?(reader.questions.some(q=>q.kind==='written')?'已完成 · 含主观题自行核对，软件未判分':'已完成 · 再次作答不会撤回完成记录'):reader.canAnswer?(reader.questions.some(q=>q.kind==='written')?'单选题自动判分；主观题查看参考答案后自行核对':'可测验 · 每题至少答对一次即可完成'):'历史版本 · 仅可阅读';
  const content=document.getElementById('content');
  const existing=same?new Map([...content.children].map(el=>[el.id,el])):new Map();
  const questions=new Map(reader.questions.map(q=>[q.id,q]));
@@ -93,9 +107,18 @@ function render(reader){
   const section=element('section',undefined,block.kind);section.renderSignature=signature;section.id=block.id;section.dataset.block=block.id;
   if(block.kind==='question'){
    const q=questions.get(block.questionId);const prompt=paragraph(q.prompt);prompt.className='question-prompt';section.append(prompt);const form=element('form');form.dataset.question=q.id;
+   if(q.kind==='written'){
+    const area=element('textarea');area.maxLength=16000;area.rows=6;area.placeholder='写下答案或解题过程；也可注明已在纸上作答。';area.value=q.responseText??'';area.disabled=!reader.canAnswer;form.append(area);
+    const reveal=element('button','提交作答并查看参考答案');reveal.type='submit';reveal.disabled=!reader.canAnswer;form.append(reveal);
+    form.addEventListener('submit',e=>{e.preventDefault();if(area.value.trim())message('answer',{questionId:q.id,optionId:'reveal',responseText:area.value,requestId:crypto.randomUUID()});});section.append(form);
+    if(q.answer){const answer=paragraph('参考答案（请自行核对，软件未判分）\n'+q.answer.explanation);answer.className='answer';section.append(answer);
+     const button=element('button','我已核对并掌握');button.disabled=!reader.canAnswer;button.addEventListener('click',()=>message('answer',{questionId:q.id,optionId:'self-correct',requestId:crypto.randomUUID()}));section.append(button);
+    }
+   }else{
    for(const option of q.options){const label=element('label'),input=element('input');input.type='radio';input.name=q.id;input.value=option.id;input.disabled=!reader.canAnswer;label.append(input,element('b',(option.displayLabel??'')+'. ','option-label'),rich(option.text));form.append(label);}
    const button=element('button','提交答案');button.type='submit';button.disabled=!reader.canAnswer;form.append(button);form.addEventListener('submit',e=>{e.preventDefault();const picked=form.querySelector('input:checked');if(picked)message('answer',{questionId:q.id,optionId:picked.value,requestId:crypto.randomUUID()});});section.append(form);
    if(q.answer){const correct=q.options.find(o=>o.id===q.answer.correctOptionId);const answer=paragraph('正确选项：'+(correct?.displayLabel??'')+' · '+(correct?.text??'')+'\n'+q.answer.explanation);answer.className='answer';section.append(answer);}
+   }
   }else if(block.kind==='heading')section.append(rich(block.text,'h2'));
   else if(block.kind==='code')section.append(renderCode(block.text));
   else if(block.kind==='math')mathBlock(block.text,section);
@@ -108,7 +131,7 @@ function render(reader){
  document.getElementById('sources').textContent='资料信息 · 固定版本资料：\n'+reader.sources.map(s=>s.key+' · '+s.reference.locator.sourceLabel+' / '+(s.reference.locator.heading||'')+' · '+s.reference.versionId).join('\n')+(hasOcr?'\nOCR未复核：自动识别结果未经人工逐项核对。清楚内容可用于学习和测验；实际不清晰或缺失的部分需对照原页。':'');
  requestAnimationFrame(()=>{if(current!==reader)return;if(previous!==null)window.scrollTo(0,previous);else if(reader.position)document.getElementById(reader.position.blockId)?.scrollIntoView();else window.scrollTo(0,0);scrollInitialized=true;setTimeout(()=>{if(current===reader)restoring=false;},150);});
 }
-window.chrome.webview.addEventListener('message',e=>{if(e.data.type==='lesson')render(e.data.value);else if(e.data.type==='clear'){current=null;scrollInitialized=false;clearTimeout(saveTimer);document.getElementById('content').replaceChildren();document.getElementById('sources').textContent='';document.getElementById('title').textContent='课程正文';document.getElementById('state').textContent='正文未生成，请查看左侧课程目标并点击生成。';}});
+window.chrome.webview.addEventListener('message',e=>{if(e.data.type==='lesson')render(e.data.value);else if(e.data.type==='clear'){current=null;scrollInitialized=false;clearTimeout(saveTimer);document.getElementById('content').replaceChildren();document.getElementById('sources').textContent='';document.getElementById('title').textContent='课程内容';document.getElementById('state').textContent='内容未生成，请查看左侧课程目标并点击生成。';}});
 document.getElementById('quiz').addEventListener('click',()=>document.querySelector('.question')?.scrollIntoView());
 window.addEventListener('scroll',()=>{if(restoring||!current?.canAnswer)return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>{const blocks=[...document.querySelectorAll('section')];const first=blocks.find(b=>b.getBoundingClientRect().bottom>20);if(first)message('position',{blockId:first.id,offset:0,requestId:crypto.randomUUID()});},300);});
 window.chrome.webview.postMessage({action:'ready'});

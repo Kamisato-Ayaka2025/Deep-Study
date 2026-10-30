@@ -6,7 +6,7 @@ using StudyHarness.Contracts;
 
 namespace StudyHarness.Desktop;
 
-public sealed record LearningNode(string Key, string Label, string Detail);
+public sealed record LearningNode(string Key, string Label, string Detail, string Type = "theory");
 public sealed class LearningViewModel(GenerationService service, Guid subjectId) : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -35,6 +35,8 @@ public sealed class LearningViewModel(GenerationService service, Guid subjectId)
     public bool CanGenerate { get; private set; }
     public string GenerateLabel { get; private set; } = "点击自动生成课文";
     public string Title => Selected?.Detail.Split('\n')[0] ?? "课程";
+    public string LessonTypeLabel => Selected?.Type == "quiz" ? "测验课" : Selected?.Type == "lab" ? "实验课" : "理论课";
+    public string ContentLabel => Selected?.Type == "quiz" ? "测验" : "课文";
     public bool HasCurrentLesson { get; private set; }
     public LessonReader? Reader => reader;
     public LearningNode? Selected
@@ -42,8 +44,8 @@ public sealed class LearningViewModel(GenerationService service, Guid subjectId)
         get => selected;
         set
         {
-            var changed = selected?.Key != value?.Key; selected = value; Notify(); Notify(nameof(Title)); Detail = value?.Detail ?? "";
-            if (changed) { HasCurrentLesson = false; GenerateLabel = "点击自动生成课文"; CanGenerate = false; Notify(nameof(GenerateLabel)); Notify(nameof(CanGenerate)); }
+            var changed = selected?.Key != value?.Key; selected = value; Notify(); Notify(nameof(Title)); Notify(nameof(LessonTypeLabel)); Notify(nameof(ContentLabel)); Detail = value?.Detail ?? "";
+            if (changed) { HasCurrentLesson = false; GenerateLabel = "点击自动生成" + ContentLabel; CanGenerate = false; Notify(nameof(GenerateLabel)); Notify(nameof(CanGenerate)); }
             if (changed && !refreshing) { HidePreview(); viewingHistory = false; reader = null; LessonCleared?.Invoke(); if (value is not null) _ = SafeAsync(OpenAsync); }
         }
     }
@@ -79,10 +81,11 @@ public sealed class LearningViewModel(GenerationService service, Guid subjectId)
                 var versions = key is null ? Array.Empty<LessonHistory>() : await service.Learning.HistoryAsync(subjectId, key);
                 var latest = queue.LastOrDefault(t => t.SubjectId == subjectId && t.NodeKey == key);
                 var needsClick = latest?.Status == GenerationStatus.Queued && !await service.HasApprovalAsync(latest);
-                return (plan, done, queue, control, lesson, versions, needsClick);
+                var contextGap = latest?.Status == GenerationStatus.Failed && service.Queue is IContextDiagnostics diagnostics ? await diagnostics.ContextGapAsync(latest.Id) : null;
+                return (plan, done, queue, control, lesson, versions, needsClick, contextGap);
             });
             if (closed || selected?.Key != selectedKey || revision != viewRevision) return;
-            var (draft, completed, all, policy, loaded, versions, needsClick) = snapshot;
+            var (draft, completed, all, policy, loaded, versions, needsClick, contextGap) = snapshot;
             if (draft?.Plan is null) return;
             Control = $"模式：{policy.Mode} · 自动状态：{(policy.AutoPaused ? "已暂停，需主动继续" : "未暂停")} · 授权不跨重启保留";
             Tasks = string.Join("\n", all.Where(t => t.SubjectId == subjectId).TakeLast(15).Select(t =>
@@ -95,7 +98,7 @@ public sealed class LearningViewModel(GenerationService service, Guid subjectId)
             {
                 var task = latestTasks.GetValueOrDefault(n.Key);
                 var state = completed.Contains(n.Key) ? "已完成" : task?.Status == GenerationStatus.Ready ? "正文就绪" : task?.Status.ToString() ?? "未生成";
-                nodes.Add(new(n.Key, $"{n.Key} · {n.Title} · {state}", $"{n.Title}\n目标：{string.Join("；", n.Objectives)}\n建议先学：{string.Join("、", n.PrerequisiteKeys)}\n{(n.Type == "lab" ? "实验材料：请从课程图打开，自行测评" : state)}"));
+                nodes.Add(new(n.Key, $"{n.Key} · {n.Title} · {state}", $"{n.Title}\n目标：{string.Join("；", n.Objectives)}\n建议先学：{string.Join("、", n.PrerequisiteKeys)}\n{(n.Type == "lab" ? "实验材料：请从课程图打开，自行测评" : state)}", n.Type));
             }
             Nodes.Replace(nodes);
             Selected = Nodes.FirstOrDefault(n => n.Key == key) ?? Nodes.FirstOrDefault();
@@ -113,7 +116,7 @@ public sealed class LearningViewModel(GenerationService service, Guid subjectId)
             {
                 observedTask = (latest.Id, latest.Revision);
                 Status = latest.Status switch {
-                    GenerationStatus.Failed => "生成失败：" + FailureText(latest.Failure) + (current is null ? "；点击按钮可重试。" : "；原文章和学习记录已保留。"),
+                    GenerationStatus.Failed => contextGap is not null ? contextGap + "；请补充资料或重新规划本课，重复生成不能补齐原文。" : "生成失败：" + FailureText(latest.Failure) + (current is null ? "；点击按钮可重试。" : "；原文章和学习记录已保留。"),
                     GenerationStatus.Cancelled => "生成已取消，已发送的请求可能计费；原文章和学习记录保留。",
                     GenerationStatus.Ready => "文章已就绪，可直接阅读和作答。",
                     _ => "正在生成文章，请稍候；成功后自动显示。"
@@ -121,9 +124,9 @@ public sealed class LearningViewModel(GenerationService service, Guid subjectId)
             }
             if (latest?.Status == GenerationStatus.Running && DateTimeOffset.UtcNow - latest.CreatedAt > TimeSpan.FromSeconds(300))
                 Status = "文章生成比预期久，仍在处理；可取消，原文章会保留。";
-            CanGenerate = preparation is null && (!IsGenerating || needsClick) && selectedNode?.Type == "theory" && draft.Confirmed;
+            CanGenerate = preparation is null && (!IsGenerating || needsClick) && selectedNode?.Type is ("theory" or "quiz") && draft.Confirmed;
             HasCurrentLesson = current is not null;
-            GenerateLabel = current is not null ? "重新生成课文" : "点击自动生成课文";
+            GenerateLabel = current is not null ? "重新生成" + ContentLabel : "点击自动生成" + ContentLabel;
             if (needsClick) Status = "任务尚未发送。点击继续生成即可使用当前配置完成本课。";
             Notify(nameof(IsGenerating)); Notify(nameof(CanGenerate)); Notify(nameof(GenerateLabel));
             if (!viewingHistory && current is not null && reader?.Identity.LessonHash != current.Identity.LessonHash)
@@ -154,7 +157,7 @@ public sealed class LearningViewModel(GenerationService service, Guid subjectId)
         if (closed || Selected?.Key != key || revision != viewRevision) return;
         reader = result.Value;
         HasCurrentLesson = result.Ok;
-        GenerateLabel = HasCurrentLesson ? "重新生成课文" : "点击自动生成课文"; Notify(nameof(GenerateLabel));
+        GenerateLabel = HasCurrentLesson ? "重新生成" + ContentLabel : "点击自动生成" + ContentLabel; Notify(nameof(GenerateLabel));
         if (reader is not null) { LessonChanged?.Invoke(reader); Status = reader.CanAnswer ? "正文已打开。跳过阅读仍需每题答对一次。" : "历史版本仅供阅读。"; }
         else { LessonCleared?.Invoke(); Status = result.Error?.Message ?? "本课尚无课文。点击自动生成课文即可。"; }
         await RefreshAsync();
@@ -234,19 +237,19 @@ public sealed class LearningViewModel(GenerationService service, Guid subjectId)
     public void Close() { closed = true; viewRevision++; preparation?.Cancel(); HidePreview(); }
     public async Task ModeAsync(GenerationMode mode) { await service.SetModeAsync(mode); await RefreshAsync(); }
     public async Task ResumeAsync() { await service.ResumeAsync(); Status = "已明确继续自动生成；仍需有效授权。"; await RefreshAsync(); }
-    public async Task SubmitAsync(string hash, string question, string option, Guid requestId)
+    public async Task SubmitAsync(string hash, string question, string option, Guid requestId, string? responseText = null)
     {
         if (reader is null || reader.Identity.LessonHash != hash || Selected?.Key != reader.Identity.NodeKey) return;
         var identity = reader.Identity;
         await readerWrites.WaitAsync();
         Result<AnswerResult> result;
-        try { result = await Task.Run(() => service.Learning.SubmitAnswerAsync(new(requestId, 0, new(identity, question, option)))); }
+        try { result = await Task.Run(() => service.Learning.SubmitAnswerAsync(new(requestId, 0, new(identity, question, option, responseText)))); }
         finally { readerWrites.Release(); }
         if (closed || reader?.Identity != identity || Selected?.Key != identity.NodeKey) return;
         if (!result.Ok) { Status = result.Error!.Message; return; }
         var value = result.Value!;
         await OpenAsync();
-        Status = value.Correct ? value.Completed ? "回答正确，本课已完成。" : "回答正确，解析已解锁。" : "本次回答错误，请继续尝试；已获完成记录不会撤回。";
+        Status = value.Kind == "written" ? option == "reveal" ? "参考答案已展示，请自行核对；软件未判分。" : value.Completed ? "已记录自评，本课已完成（含自行核对）。" : "已记录自评，可继续练习。" : value.Correct ? value.Completed ? "回答正确，本课已完成。" : "回答正确，解析已解锁。" : "本次回答错误，请继续尝试；已获完成记录不会撤回。";
         await service.ScanAsync(); await RefreshAsync();
     }
     public async Task PositionAsync(string hash, string block, int offset, Guid requestId)

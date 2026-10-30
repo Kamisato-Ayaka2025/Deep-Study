@@ -7,6 +7,8 @@ public static class QuizProjection
 {
     public static ReaderQuestion Project(LessonQuestion question, QuizOptionOrder order, bool everCorrect)
     {
+        if (question.Kind == "written") return new(question.Id, question.Prompt, [], everCorrect,
+            everCorrect ? new("", (question.ReferenceAnswer ?? "") + "\n" + question.Explanation) : null, "written");
         if (!OptionPermutation.IsPermutation(question.Options.Select(o => o.Id).ToArray(), order.OrderedOptionIds))
             throw new InvalidDataException("选项排列记录无效，请恢复学习库备份后重试。");
         var byId = question.Options.ToDictionary(o => o.Id, StringComparer.Ordinal);

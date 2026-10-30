@@ -23,6 +23,25 @@ public sealed class PlanParser : IPlanParser
         {
             if (text.Length > 524288) throw new JsonException();
             var node = JsonNode.Parse(text);
+            if (node?["knowledgeCoverage"] is JsonArray knowledgeCoverage)
+            {
+                var expandedKnowledge = new JsonArray();
+                foreach (var item in knowledgeCoverage)
+                {
+                    var key = item?["knowledgeKey"]?.GetValue<string>() ?? "";
+                    var range = System.Text.RegularExpressions.Regex.Match(key, @"^(d[1-9][0-9]*u[1-9][0-9]*k)([1-9][0-9]*)\.\.([1-9][0-9]*)$");
+                    if (range.Success)
+                    {
+                        var first = int.Parse(range.Groups[2].Value); var last = int.Parse(range.Groups[3].Value);
+                        if (last < first || last > 80) throw new JsonException();
+                        for (var k = first; k <= last; k++) { var copy = item!.DeepClone(); copy["knowledgeKey"] = range.Groups[1].Value + k; expandedKnowledge.Add(copy); }
+                    }
+                    else expandedKnowledge.Add(item?.DeepClone());
+                    if (expandedKnowledge.Count > 10000) throw new JsonException();
+                }
+                node!["knowledgeCoverage"] = expandedKnowledge;
+                text = node.ToJsonString(Wire.Options);
+            }
             var schema = node?["schemaVersion"]?.GetValue<int>() == 2 ? AdaptiveSchema : Schema;
             if (schema == AdaptiveSchema && node?["coverage"] is JsonArray coverage)
             {
@@ -94,7 +113,7 @@ public sealed class PlanParser : IPlanParser
     private static void DeriveSummaries(JsonObject candidate)
     {
         if (candidate["strategy"] is not JsonObject strategy || candidate["nodes"] is not JsonArray nodes || nodes.Count == 0) return;
-        string[] allowedModes = ["theory", "exercise", "project"];
+        string[] allowedModes = ["theory", "quiz", "exercise", "project"];
         string[] allowedCapabilities = ["paper-exercise", "manual-project", "portable-c", "portable-cpp"];
         static bool Known(JsonNode? value, string[] allowed) => value is null || value is JsonArray a && a.All(v => v is JsonValue j && j.TryGetValue<string>(out var s) && allowed.Contains(s));
         // Unknown declared values must still fail Schema; do not erase unsupported capabilities.
@@ -102,7 +121,7 @@ public sealed class PlanParser : IPlanParser
         var modes = new List<string>(); var capabilities = new List<string>();
         foreach (var node in nodes)
         {
-            if (node?["type"]?.GetValue<string>() == "theory" && node["lab"] is null) modes.Add("theory");
+            if (node?["type"]?.GetValue<string>() is "theory" or "quiz" && node["lab"] is null) modes.Add(node["type"]!.GetValue<string>());
             else if (node?["type"]?.GetValue<string>() == "lab" && node["lab"] is JsonObject lab &&
                 lab["kind"]?.GetValue<string>() is string kind && allowedModes.Contains(kind) && kind != "theory" &&
                 lab["toolchain"]?.GetValue<string>() is string capability && allowedCapabilities.Contains(capability))

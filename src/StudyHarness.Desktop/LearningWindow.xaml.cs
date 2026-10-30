@@ -33,7 +33,7 @@ public partial class LearningWindow : Window
             if (action == "ready") { if (Model.Reader is { } lesson) Reader.ShowLesson(lesson); return; }
             var hash = message.GetProperty("lessonHash").GetString()!;
             if (!Guid.TryParse(message.GetProperty("requestId").GetString(), out var id) || id == Guid.Empty) return;
-            if (action == "answer") await Model.SubmitAsync(hash, message.GetProperty("questionId").GetString()!, message.GetProperty("optionId").GetString()!, id);
+            if (action == "answer") await Model.SubmitAsync(hash, message.GetProperty("questionId").GetString()!, message.GetProperty("optionId").GetString()!, id, message.TryGetProperty("responseText", out var response) ? response.GetString() : null);
             if (action == "position") await Model.PositionAsync(hash, message.GetProperty("blockId").GetString()!, message.GetProperty("offset").GetInt32(), id);
         });
         Loaded += async (_, _) =>

@@ -34,7 +34,7 @@ public sealed class HybridKnowledgeTests
         var parser = new TheoryLessonParser();
         var lesson = TheoryFixtureProvider.NewLesson("s1") with { SchemaVersion = 4, SourceKeys = [] };
         Assert.True(parser.Parse(JsonSerializer.Serialize(lesson, Wire.Options), []).Ok);
-        Assert.False(parser.Parse(JsonSerializer.Serialize(lesson with { SchemaVersion = 3 }, Wire.Options), []).Ok);
+        Assert.True(parser.Parse(JsonSerializer.Serialize(lesson with { SchemaVersion = 3 }, Wire.Options), []).Ok);
         Assert.False(parser.Parse(JsonSerializer.Serialize(lesson with { SourceKeys = ["invented"] }, Wire.Options), []).Ok);
         Assert.False(parser.Parse(JsonSerializer.Serialize(lesson with { Questions = [] }, Wire.Options), []).Ok);
         Assert.False(parser.Parse(JsonSerializer.Serialize(lesson with

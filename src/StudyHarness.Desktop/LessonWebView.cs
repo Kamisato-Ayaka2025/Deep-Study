@@ -43,7 +43,7 @@ public sealed class LessonWebView : WebView2
             if (e.Source != Origin + "/index.html") return;
             try
             {
-                if (e.WebMessageAsJson.Length > 4096) return;
+                if (e.WebMessageAsJson.Length > 131072) return;
                 using var doc = JsonDocument.Parse(e.WebMessageAsJson); var message = doc.RootElement.Clone();
                 if (message.GetProperty("action").GetString() == "ready") ReaderReady = true;
                 if (ReaderMessage is { } handler) await handler(message);

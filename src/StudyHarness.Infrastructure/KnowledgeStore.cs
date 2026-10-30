@@ -12,6 +12,14 @@ namespace StudyHarness.Infrastructure;
 
 public sealed partial class KnowledgeStore : IKnowledgeStore, IWebKnowledge, IBoundedCollectionKnowledge, IOcrKnowledge, ISiteKnowledge, IImportProgressKnowledge
 {
+    private static string ImportFailure(Exception error) => error.Message switch
+    {
+        "PDF页数超过10000页导入上限。" => error.Message,
+        "Source exceeds size budget" => "文件超过此类型的导入大小上限（PDF/PPT为512 MiB）。",
+        "Collection extraction budget" or "Semantic chunk budget exceeded" => "提取内容超过本地容量上限，请拆分资料后导入。",
+        "Collection cache budget" => "资料库缓存容量已达上限，请选择其他资料库。",
+        _ => "文件无法读取或解析；请检查文件是否可打开、是否被占用或加密。"
+    };
     public async Task<Result<CollectionSnapshot>> ImportCollectionAsync(HostSelection selection, Guid library, CancellationToken ct = default)
     {
         await mutex.WaitAsync(ct);
@@ -23,13 +31,13 @@ public sealed partial class KnowledgeStore : IKnowledgeStore, IWebKnowledge, IBo
             return Result<CollectionSnapshot>.Success(await Task.Run(() => new CollectionStore(location.Root, library).Import(selection.Path, ct), ct));
         }
         catch (Exception e) when (e is not OperationCanceledException and not OutOfMemoryException)
-        { return Result<CollectionSnapshot>.Fail(ErrorCode.SOURCE_UNAVAILABLE, "教材无法读取、格式损坏或超过资源限额；未完成导入。"); }
+        { return Result<CollectionSnapshot>.Fail(ErrorCode.SOURCE_UNAVAILABLE, ImportFailure(e)); }
         finally { mutex.Release(); }
     }
     public async Task<IReadOnlyList<CollectionSnapshot>> CollectionsAsync(Guid library, CancellationToken ct = default)
     {
         await mutex.WaitAsync(ct);
-        try { return new CollectionStore(Locate(library).Root, library).List(); }
+        try { return new CollectionStore(Locate(library).Root, library).List().Concat(WebCollections(library)).ToArray(); }
         finally { mutex.Release(); }
     }
     public async Task<IReadOnlyList<KnowledgeFragment>> RetrieveAsync(Guid library, string query, IReadOnlyList<Guid> collections, int maxCharacters, CancellationToken ct = default)
@@ -44,6 +52,18 @@ public sealed partial class KnowledgeStore : IKnowledgeStore, IWebKnowledge, IBo
     public async Task<IReadOnlyList<KnowledgeFragment>> RetrieveFrozenAsync(PlanCollection collection, string query, IReadOnlyList<string> entryKeys, int maxCharacters, SourceAcquisitionBudget budget, CancellationToken ct)
     {
         if (maxCharacters is < 1 or > 131072) throw new ArgumentOutOfRangeException(nameof(maxCharacters));
+        if (collection.SourceKind == "web")
+        {
+            var result = new List<KnowledgeFragment>(); var length = 0;
+            foreach (var reference in collection.References.Where(r => entryKeys.Contains(r.Locator.Block.Split(':')[0])))
+            {
+                var body = (await ResolveAsync(reference, ct)).Text ?? throw new IOException("网页固定正文不可访问。");
+                length += body.Length;
+                if (length > maxCharacters) throw new SourcePreparationException("网页完整正文超出本课预算，请缩小范围。");
+                result.Add(new(reference, collection.Manifest.CollectionId, body, false));
+            }
+            return result;
+        }
         await mutex.WaitAsync(ct);
         try
         {
@@ -265,7 +285,7 @@ public sealed partial class KnowledgeStore : IKnowledgeStore, IWebKnowledge, IBo
                     reports.Add(Merge(state, path, blocks, label)); imported.Add(path);
                 }
                 catch (Exception e) when (e is not OperationCanceledException and not OutOfMemoryException)
-                { reports.Add(new(Path.GetFileName(path), false, 0, 0, 0, "文件无法读取、格式损坏或超出导入限制")); }
+                { reports.Add(new(Path.GetFileName(path), false, 0, 0, 0, ImportFailure(e))); }
             }
             // Only a complete successful enumeration can establish source absence.
             if (!selection.IsPlanImport && selection.IsDirectory && !reports.Any(r => r.Error == "文件夹无法枚举或为链接"))
@@ -431,12 +451,23 @@ public sealed partial class KnowledgeStore : IKnowledgeStore, IWebKnowledge, IBo
         {
             var library = Locate(reference.LibraryId); using var pin = SafeKnowledgeFiles.PinDirectory(library.Root);
             using var filePin = SafeKnowledgeFiles.PinExistingFile(Path.Combine(library.Root, "knowledge.db"));
-            using var db = Open(Path.Combine(library.Root, "knowledge.db")); Initialize(db); var state = Read<LibraryState>(db);
-            if (state.Id != reference.LibraryId || reference.SchemaVersion != 1) throw new InvalidDataException("Identity mismatch");
-            var node = state.Sources.SelectMany(s => s.Nodes).SingleOrDefault(n => n.Id == reference.NodeId);
+            using var db = Open(Path.Combine(library.Root, "knowledge.db")); Initialize(db);
+            using var command = db.CreateCommand();
+            command.CommandText = "SELECT json FROM state WHERE id=1";
+            using var document = JsonDocument.Parse((string?)command.ExecuteScalar() ?? "{}");
+            var state = document.RootElement;
+            if (!state.TryGetProperty("id", out var identity) || identity.GetGuid() != reference.LibraryId || reference.SchemaVersion != 1) throw new InvalidDataException("Identity mismatch");
+            Node? node = null;
+            foreach (var source in state.GetProperty("sources").EnumerateArray())
+                foreach (var candidate in source.GetProperty("nodes").EnumerateArray())
+                    if (candidate.GetProperty("id").GetGuid() == reference.NodeId)
+                    {
+                        if (node is not null) throw new InvalidDataException("Duplicate node");
+                        node = candidate.Deserialize<Node>(Wire.Options);
+                    }
             if (node is null && new CollectionStore(library.Root, library.Id).Resolve(reference) is { } collectionSource) return collectionSource;
             var version = node?.Versions.SingleOrDefault(v => v.Id == reference.VersionId && v.Hash == reference.ContentHash && v.Locator == reference.Locator);
-            if (version is null || !state.Blobs.TryGetValue(version.Hash, out var text) || Hash(text) != reference.ContentHash) throw new InvalidDataException("Citation mismatch");
+            if (version is null || !state.GetProperty("blobs").TryGetProperty(version.Hash, out var blob) || blob.GetString() is not string text || Hash(text) != reference.ContentHash) throw new InvalidDataException("Citation mismatch");
             return new(reference, text, null);
         }
         catch (Exception e) when (IsIo(e)) { return new(reference, null, "原资料库离线、引用不存在或内容校验失败；保留原引用，不替换内容。"); }
